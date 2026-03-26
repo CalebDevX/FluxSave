@@ -2,28 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
-  />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <title>FluxSave – All Media Downloader</title>
-
-  <meta
-    name="description"
-    content="Download TikTok videos without watermark, Snapchat stories, YouTube videos, Instagram reels, Pinterest, X and more with FluxSave."
-  />
-  <meta
-    name="keywords"
-    content="fluxsave, media downloader, tiktok downloader, snapchat downloader, youtube downloader, instagram downloader, pinterest downloader, x downloader, twitter downloader, spotify downloader"
-  />
+  <meta name="description" content="Download TikTok videos without watermark, Snapchat stories, YouTube videos, Instagram reels, Pinterest clips, X videos and more with FluxSave." />
+  <meta name="keywords" content="fluxsave, media downloader, tiktok downloader, snapchat downloader, youtube downloader, instagram downloader, pinterest downloader, x downloader, twitter downloader, spotify downloader" />
   <meta name="author" content="Achek Digital Solutions" />
-
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link
-    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&display=swap"
-    rel="stylesheet"
-  />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&display=swap" rel="stylesheet" />
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}" />
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.png') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
@@ -42,7 +28,7 @@
           <span class="brandSub">All Media Downloader</span>
         </div>
       </a>
-        </header>
+    </header>
 
     <section class="hero">
       <h1 class="title">
@@ -52,8 +38,9 @@
         TikTok without watermark, Snapchat stories, YouTube videos,
         Instagram reels, Pinterest clips, X videos and more.
       </p>
-        </section>
+    </section>
 
+    <!-- Main URL input card -->
     <section class="card">
       <div class="cardTitle">Paste Media Link</div>
       <p class="tiny">
@@ -61,15 +48,15 @@
       </p>
 
       <div class="input-wrapper mobile-stack">
-                                <input 
+        <input
           class="input"
           id="mediaInput"
           type="url"
-          placeholder="Paste TikTok, Snapchat, YouTube, Instagram, Pinterest, X, Spotify link..."
-                                    autocomplete="off"
+          placeholder="Paste TikTok, YouTube, Instagram, Spotify, X link..."
+          autocomplete="off"
         />
         <button class="icon-btn" id="pasteBtn" type="button">Paste</button>
-                        </div>
+      </div>
 
       <div id="detectText" class="detect-text"></div>
       <div id="errorText" class="error-text"></div>
@@ -78,36 +65,53 @@
 
       <div id="loader" class="loader hidden">
         <div class="spinner"></div>
-        <span>Processing...</span>
-                                </div>
+        <span id="loaderText">Processing...</span>
+      </div>
     </section>
 
+    <!-- Download options result card -->
     <section id="resultCard" class="card hidden">
-      <div class="cardTitle">Download Options</div>
-      <p class="tiny">
-        Tap any option below. Your monetized page opens first, then the download starts.
-      </p>
-
-      <div id="mediaMeta" class="tiny" style="text-align:left;"></div>
+      <div class="cardTitle">⬇ Download Options</div>
+      <div id="mediaMeta" class="media-meta-block"></div>
 
       <div class="downloadGrid mt-3">
         <div class="downloadGroup">
-          <div class="groupTitle">Video</div>
+          <div class="groupTitle">🎬 Video</div>
           <div id="videoButtons" class="formatGrid"></div>
         </div>
         <div class="downloadGroup">
-          <div class="groupTitle">Audio (MP3)</div>
+          <div class="groupTitle">🎵 Audio</div>
           <div id="audioButtons" class="formatGrid"></div>
         </div>
       </div>
     </section>
 
-    <section class="card">
-      <div class="cardTitle">Sponsored</div>
-      <p class="tiny">
-        Banner or native ad placement for Monetag goes here.
-      </p>
-      <button class="ghost" type="button">ADVERTISEMENT</button>
+    <!-- Spotify Search Section -->
+    <section class="card spotify-card">
+      <div class="cardTitle">
+        <span class="spotify-icon">&#9679;</span> Spotify Search &amp; Download
+      </div>
+      <p class="tiny">Search for any song or artist on Spotify and download it as MP3 — no link needed.</p>
+
+      <div class="input-wrapper mobile-stack">
+        <input
+          class="input"
+          id="spotifySearchInput"
+          type="text"
+          placeholder="Search songs, artists, albums..."
+          autocomplete="off"
+        />
+        <button class="icon-btn spotify-search-btn" id="spotifySearchBtn" type="button">Search</button>
+      </div>
+
+      <div id="spotifySearchLoader" class="loader hidden">
+        <div class="spinner spinner-green"></div>
+        <span>Searching Spotify...</span>
+      </div>
+
+      <div id="spotifySearchError" class="error-text"></div>
+
+      <div id="spotifyResultsList" class="spotify-results hidden"></div>
     </section>
 
     <section class="card">
@@ -116,7 +120,6 @@
         Achek builds websites, mobile apps, automation systems, bots,
         business tools and modern digital platforms.
       </p>
-
       <div class="btn-grid">
         <button class="cta" type="button" onclick="window.open('https://achek.com.ng', '_blank')">
           Start Your Project
@@ -124,7 +127,7 @@
         <button class="ghost" type="button" onclick="window.open('https://wa.me/2348104040841', '_blank')">
           Chat on WhatsApp
         </button>
-                                </div>
+      </div>
     </section>
 
     <section class="card">
@@ -132,16 +135,16 @@
       <p class="tiny" style="text-align:left;">
         FluxSave is designed for fast media fetching across major platforms.
         Download TikTok videos without watermark, save Snapchat spotlight clips,
-        grab YouTube videos, Instagram reels, Pinterest clips, X videos, Spotify previews and more in one clean interface.
+        grab YouTube videos, Instagram reels, Pinterest clips, X videos, Spotify songs and more in one clean interface.
       </p>
     </section>
 
     <footer class="footer">
       <span>© 2026 FluxSave</span>
-      <a href="privacy.html">Privacy</a>
-      <a href="terms.html">Terms</a>
+      <a href="/privacy.html">Privacy</a>
+      <a href="/terms.html">Terms</a>
     </footer>
-        </main>
+  </main>
 
   <div id="toast" class="toast hidden"></div>
 

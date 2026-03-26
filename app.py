@@ -7,6 +7,7 @@ from threading import Thread
 import requests
 import audiomack_downloader as amdl
 import spotify_utils as spdu
+import spotify_api as spa
 
 app = Flask(__name__)
 
@@ -84,6 +85,62 @@ def spotify_downloader():
 @app.route('/audiomack-downloader')
 def audiomack_downloader():
     return render_template('audiomack.html')
+
+@app.route('/spotify-search', methods=['POST'])
+def spotify_search():
+    """Search Spotify for tracks and return results for the home page search feature."""
+    try:
+        data = request.get_json()
+        query = (data or {}).get('query', '').strip()
+        if not query:
+            return jsonify({'success': False, 'error': 'Search query is required'}), 400
+
+        results = []
+
+        # Try official Spotify API first (needs SPOTIFY_CLIENT_ID/SECRET or SPOTIFY_BEARER_TOKEN)
+        try:
+            raw = spdu.search_tracks(query, limit=15)
+            for t in raw:
+                thumb = ''
+                images = t.get('images') or []
+                if images:
+                    thumb = images[-1].get('url', '') if len(images) > 1 else images[0].get('url', '')
+                duration_sec = int((t.get('duration_ms') or 0) / 1000)
+                results.append({
+                    'title': t.get('name') or t.get('title') or '',
+                    'artists': t.get('artists') or [],
+                    'album': t.get('album') or '',
+                    'duration': duration_sec,
+                    'thumbnail': thumb,
+                    'spotify_url': t.get('spotify_url') or t.get('external_urls', {}).get('spotify') or '',
+                })
+        except Exception:
+            pass
+
+        # Fallback to external search API if official returned nothing
+        if not results:
+            try:
+                raw = spa.search_spotify_external(query)
+                for t in raw:
+                    artists = t.get('artists') or []
+                    if isinstance(artists, str):
+                        artists = [artists]
+                    results.append({
+                        'title': t.get('title') or t.get('name') or '',
+                        'artists': artists,
+                        'album': t.get('album') or '',
+                        'duration': t.get('duration') or 0,
+                        'thumbnail': t.get('thumbnail') or t.get('cover') or '',
+                        'spotify_url': t.get('spotify_url') or t.get('url') or '',
+                    })
+            except Exception:
+                pass
+
+        return jsonify({'success': True, 'results': results})
+
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/privacy.html')
 def privacy():

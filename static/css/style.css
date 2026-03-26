@@ -655,21 +655,91 @@ body {
 
 @media (max-width: 560px) {
   .page {
-    padding-left: 14px;
-    padding-right: 14px;
+    padding-left: 12px;
+    padding-right: 12px;
+    gap: 14px;
   }
 
   .card {
-    padding: 18px;
-    border-radius: 18px;
+    padding: 16px;
+    border-radius: 16px;
   }
 
   .btn-grid {
     grid-template-columns: 1fr;
   }
 
+  /* Format grid: keep 2 cols but make buttons more compact */
   .formatGrid {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .format-btn {
+    min-height: 56px;
+    padding: 10px 6px;
+    border-radius: 12px;
+  }
+
+  .btn-quality-label {
+    font-size: 0.88rem;
+  }
+
+  .btn-ext-badge {
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+
+  .btn-hd-badge {
+    font-size: 0.58rem;
+    top: 4px;
+    right: 5px;
+  }
+
+  .downloadGroup {
+    padding: 12px;
+  }
+
+  /* Media meta: smaller thumbnail on mobile */
+  .meta-thumb {
+    width: 60px;
+    height: 60px;
+  }
+
+  .meta-title {
+    font-size: 0.9rem;
+  }
+
+  .meta-sub {
+    font-size: 0.78rem;
+  }
+
+  /* Spotify track item: stack on mobile */
+  .spotify-track-item {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .spotify-track-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+  }
+
+  .spotify-track-info {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .spotify-track-duration {
+    display: none;
+  }
+
+  .spotify-dl-btn {
+    width: 100%;
+    padding: 9px 10px;
+    font-size: 0.82rem;
   }
 }
 
@@ -688,5 +758,20 @@ body {
 
   .subtitle {
     font-size: 0.92rem;
+  }
+
+  /* Even more compact format buttons on very small screens */
+  .formatGrid {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .format-btn {
+    min-height: 52px;
+    padding: 8px 4px;
+  }
+
+  .btn-quality-label {
+    font-size: 0.82rem;
   }
 }

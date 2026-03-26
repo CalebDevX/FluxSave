@@ -86,6 +86,32 @@ def spotify_downloader():
 def audiomack_downloader():
     return render_template('audiomack.html')
 
+def _parse_duration_to_seconds(val):
+    """Convert duration value to seconds. Handles int (ms), float, or string like '3:45'."""
+    if not val:
+        return 0
+    if isinstance(val, (int, float)):
+        # If value > 1000 it's probably milliseconds
+        return int(val / 1000) if val > 1000 else int(val)
+    if isinstance(val, str):
+        val = val.strip()
+        if ':' in val:
+            parts = val.split(':')
+            try:
+                if len(parts) == 2:
+                    return int(parts[0]) * 60 + int(parts[1])
+                if len(parts) == 3:
+                    return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+            except Exception:
+                return 0
+        try:
+            n = float(val)
+            return int(n / 1000) if n > 1000 else int(n)
+        except Exception:
+            return 0
+    return 0
+
+
 @app.route('/spotify-search', methods=['POST'])
 def spotify_search():
     """Search Spotify for tracks and return results for the home page search feature."""
@@ -97,42 +123,61 @@ def spotify_search():
 
         results = []
 
-        # Try official Spotify API first (needs SPOTIFY_CLIENT_ID/SECRET or SPOTIFY_BEARER_TOKEN)
-        try:
-            raw = spdu.search_tracks(query, limit=15)
-            for t in raw:
-                thumb = ''
-                images = t.get('images') or []
-                if images:
-                    thumb = images[-1].get('url', '') if len(images) > 1 else images[0].get('url', '')
-                duration_sec = int((t.get('duration_ms') or 0) / 1000)
-                results.append({
-                    'title': t.get('name') or t.get('title') or '',
-                    'artists': t.get('artists') or [],
-                    'album': t.get('album') or '',
-                    'duration': duration_sec,
-                    'thumbnail': thumb,
-                    'spotify_url': t.get('spotify_url') or t.get('external_urls', {}).get('spotify') or '',
-                })
-        except Exception:
-            pass
-
-        # Fallback to external search API if official returned nothing
-        if not results:
+        # Try official Spotify API only if credentials are configured
+        client_id = os.environ.get('SPOTIFY_CLIENT_ID')
+        bearer = os.environ.get('SPOTIFY_BEARER_TOKEN')
+        if client_id or bearer:
             try:
-                raw = spa.search_spotify_external(query)
+                raw = spdu.search_tracks(query, limit=15)
                 for t in raw:
+                    thumb = ''
+                    images = t.get('images') or []
+                    if images:
+                        # prefer medium-size image (index 1 if available)
+                        thumb = images[min(1, len(images)-1)].get('url', '')
                     artists = t.get('artists') or []
                     if isinstance(artists, str):
                         artists = [artists]
                     results.append({
-                        'title': t.get('title') or t.get('name') or '',
+                        'title': t.get('name') or t.get('title') or '',
                         'artists': artists,
                         'album': t.get('album') or '',
-                        'duration': t.get('duration') or 0,
-                        'thumbnail': t.get('thumbnail') or t.get('cover') or '',
-                        'spotify_url': t.get('spotify_url') or t.get('url') or '',
+                        'duration': _parse_duration_to_seconds(t.get('duration_ms') or 0),
+                        'thumbnail': thumb,
+                        'spotify_url': t.get('spotify_url') or t.get('external_urls', {}).get('spotify') or '',
                     })
+            except Exception:
+                pass
+
+        # Use external search API (jerrycoder / okatsu) - handles different field schemas
+        if not results:
+            try:
+                raw = spa.search_spotify_external(query)
+                for t in raw:
+                    # jerrycoder schema: trackName, artist (str), image, spotifyUrl, durationMs (str like "3:45")
+                    # okatsu schema: title, artists (list), thumbnail, spotify_url, duration_ms (int)
+                    title = (t.get('trackName') or t.get('title') or t.get('name') or '').strip()
+                    raw_artist = t.get('artist') or t.get('artists') or []
+                    if isinstance(raw_artist, str):
+                        artists = [raw_artist] if raw_artist else []
+                    elif isinstance(raw_artist, list):
+                        artists = raw_artist
+                    else:
+                        artists = []
+                    thumbnail = (t.get('image') or t.get('thumbnail') or t.get('cover') or '').strip()
+                    spotify_url = (t.get('spotifyUrl') or t.get('spotify_url') or t.get('url') or '').strip()
+                    duration = _parse_duration_to_seconds(
+                        t.get('durationMs') or t.get('duration_ms') or t.get('duration') or 0
+                    )
+                    if title:
+                        results.append({
+                            'title': title,
+                            'artists': artists,
+                            'album': t.get('album') or '',
+                            'duration': duration,
+                            'thumbnail': thumbnail,
+                            'spotify_url': spotify_url,
+                        })
             except Exception:
                 pass
 

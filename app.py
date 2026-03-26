@@ -1,5 +1,6 @@
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, Response, stream_with_context
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, Response, stream_with_context
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, Response, stream_with_context
 import yt_dlp
 import os
 import time
@@ -413,9 +414,6 @@ def fetch_info():
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
-            # Setting a format prevents yt-dlp raising "Requested format is not available"
-            # during extract_info. The full formats list is still returned regardless.
-            'format': 'bestaudio/best',
             'ignore_no_formats_error': True,
             'socket_timeout': 30,
             'retries': 5,
@@ -456,63 +454,72 @@ def fetch_info():
         if cookie_file:
             ydl_opts['cookiefile'] = cookie_file
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        try:
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+        except yt_dlp.utils.DownloadError as _fmt_err:
+            if 'not available' in str(_fmt_err).lower():
+                # Default format selector failed — retry with a permissive one
+                ydl_opts['format'] = 'bestaudio/best'
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+            else:
+                raise
 
-            if info is None:
-                return jsonify({'error': 'Could not extract media information'}), 400
+        if info is None:
+            return jsonify({'error': 'Could not extract media information'}), 400
 
-            # Get video formats
-            video_formats = []
-            audio_formats = []
+        # Get video formats
+        video_formats = []
+        audio_formats = []
 
-            if 'formats' in info and info['formats']:
-                for f in info['formats']:
-                    # Video formats (has video and optionally audio)
-                    if f.get('vcodec') != 'none':
-                        quality = f.get('format_note', f.get('quality', 'Unknown'))
-                        height = f.get('height', 0)
-                        ext = f.get('ext', 'mp4')
-                        filesize = f.get('filesize', 0) or f.get('filesize_approx', 0)
-                        filesize_mb = round(filesize / (1024 * 1024), 2) if filesize else 'Unknown'
+        if 'formats' in info and info['formats']:
+            for f in info['formats']:
+                # Video formats (has video and optionally audio)
+                if f.get('vcodec') != 'none':
+                    quality = f.get('format_note', f.get('quality', 'Unknown'))
+                    height = f.get('height', 0)
+                    ext = f.get('ext', 'mp4')
+                    filesize = f.get('filesize', 0) or f.get('filesize_approx', 0)
+                    filesize_mb = round(filesize / (1024 * 1024), 2) if filesize else 'Unknown'
 
-                        video_formats.append({
-                            'format_id': f.get('format_id'),
-                            'quality': f"{height}p" if height else quality,
-                            'ext': ext,
-                            'filesize': filesize_mb
-                        })
+                    video_formats.append({
+                        'format_id': f.get('format_id'),
+                        'quality': f"{height}p" if height else quality,
+                        'ext': ext,
+                        'filesize': filesize_mb
+                    })
 
-                    # Audio-only formats
-                    elif f.get('acodec') != 'none' and f.get('vcodec') == 'none':
-                        abr = f.get('abr', 0)
-                        ext = f.get('ext', 'mp3')
-                        filesize = f.get('filesize', 0) or f.get('filesize_approx', 0)
-                        filesize_mb = round(filesize / (1024 * 1024), 2) if filesize else 'Unknown'
+                # Audio-only formats
+                elif f.get('acodec') != 'none' and f.get('vcodec') == 'none':
+                    abr = f.get('abr', 0)
+                    ext = f.get('ext', 'mp3')
+                    filesize = f.get('filesize', 0) or f.get('filesize_approx', 0)
+                    filesize_mb = round(filesize / (1024 * 1024), 2) if filesize else 'Unknown'
 
-                        audio_formats.append({
-                            'format_id': f.get('format_id'),
-                            'quality': f"{int(abr)}kbps" if abr else 'Audio',
-                            'ext': ext,
-                            'filesize': filesize_mb
-                        })
+                    audio_formats.append({
+                        'format_id': f.get('format_id'),
+                        'quality': f"{int(abr)}kbps" if abr else 'Audio',
+                        'ext': ext,
+                        'filesize': filesize_mb
+                    })
 
-                # Remove duplicates and sort
-                video_formats = list({v['format_id']: v for v in video_formats}.values())
-                audio_formats = list({a['format_id']: a for a in audio_formats}.values())
+            # Remove duplicates and sort
+            video_formats = list({v['format_id']: v for v in video_formats}.values())
+            audio_formats = list({a['format_id']: a for a in audio_formats}.values())
 
-                video_formats = sorted(video_formats, key=lambda x: int(x['quality'].replace('p', '')) if x['quality'].replace('p', '').isdigit() else 0, reverse=True)
-                audio_formats = sorted(audio_formats, key=lambda x: int(x['quality'].replace('kbps', '')) if 'kbps' in x['quality'] else 0, reverse=True)
+            video_formats = sorted(video_formats, key=lambda x: int(x['quality'].replace('p', '')) if x['quality'].replace('p', '').isdigit() else 0, reverse=True)
+            audio_formats = sorted(audio_formats, key=lambda x: int(x['quality'].replace('kbps', '')) if 'kbps' in x['quality'] else 0, reverse=True)
 
-            return jsonify({
-                'success': True,
-                'title': info.get('title', 'Unknown Title'),
-                'thumbnail': info.get('thumbnail', ''),
-                'uploader': info.get('uploader', 'Unknown'),
-                'duration': info.get('duration_string', 'Unknown'),
-                'video_formats': video_formats[:15],
-                'audio_formats': audio_formats[:8]
-            })
+        return jsonify({
+            'success': True,
+            'title': info.get('title', 'Unknown Title'),
+            'thumbnail': info.get('thumbnail', ''),
+            'uploader': info.get('uploader', 'Unknown'),
+            'duration': info.get('duration_string', 'Unknown'),
+            'video_formats': video_formats[:15],
+            'audio_formats': audio_formats[:8]
+        })
 
     except yt_dlp.utils.DownloadError as e:
         error_msg = str(e)
@@ -1054,8 +1061,18 @@ def download():
                     'progress_hooks': [lambda d: progress_hook(d, d_id)],
                 }
 
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
+            try:
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    ydl.download([url])
+            except yt_dlp.utils.DownloadError as e:
+                if 'not available' in str(e).lower() and fmt_id:
+                    # Format ID is stale — retry with best available quality
+                    fallback_fmt = 'bestaudio/best' if d_type == 'audio' else 'bestvideo+bestaudio/best'
+                    ydl_opts['format'] = fallback_fmt
+                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                        ydl.download([url])
+                else:
+                    raise
 
             # find created file
             downloaded_files = [f for f in os.listdir(DOWNLOAD_FOLDER) if f.startswith(f'{d_type}_{ts}')]

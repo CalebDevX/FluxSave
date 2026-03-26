@@ -12,6 +12,8 @@ const els = {
   mediaMeta: document.getElementById("mediaMeta"),
   videoButtons: document.getElementById("videoButtons"),
   audioButtons: document.getElementById("audioButtons"),
+  videoGroup: document.getElementById("videoGroup"),
+  audioGroup: document.getElementById("audioGroup"),
   toast: document.getElementById("toast"),
   // Spotify search on home page
   spotifySearchInput: document.getElementById("spotifySearchInput"),
@@ -203,10 +205,13 @@ function renderMeta(info) {
 }
 
 // ─── Render download buttons ──────────────────────────────────────────────────
-function renderButtons(info) {
+function renderButtons(info, isSpotify = false) {
   if (!els.videoButtons || !els.audioButtons) return;
   els.videoButtons.innerHTML = "";
   els.audioButtons.innerHTML = "";
+
+  // Hide video section for Spotify — music only
+  if (els.videoGroup) els.videoGroup.style.display = isSpotify ? "none" : "";
 
   const v = Array.isArray(info?.video_formats) ? info.video_formats : [];
   const a = Array.isArray(info?.audio_formats) ? info.audio_formats : [];
@@ -272,6 +277,7 @@ function renderButtons(info) {
 
 // ─── Fetch info ───────────────────────────────────────────────────────────────
 async function fetchInfo(url) {
+  const isSpotify = (url || "").toLowerCase().includes("spotify.com");
   setError("");
   showResults(false);
   setLoading(true, "Fetching media info…");
@@ -285,10 +291,9 @@ async function fetchInfo(url) {
     if (!r.ok || !data?.success) throw new Error(data?.error || "Could not fetch media info.");
     lastInfo = data;
     renderMeta(data);
-    renderButtons(data);
+    renderButtons(data, isSpotify);
     showResults(true);
     showToast("Choose a format below to download.");
-    // Scroll into view
     els.resultCard?.scrollIntoView({ behavior: "smooth", block: "start" });
   } finally {
     setLoading(false);
@@ -380,26 +385,92 @@ function createSpotifyTrackItem(track) {
       <div class="spotify-track-artist">${escapeHtml(artists)}</div>
     </div>
     ${dur ? `<div class="spotify-track-duration">${escapeHtml(dur)}</div>` : ""}
-    <button class="spotify-dl-btn" data-url="${escapeHtml(track.spotify_url || "")}">⬇ Download</button>
+    <button class="spotify-dl-btn">⬇ Download MP3</button>
   `;
 
   const dlBtn = item.querySelector(".spotify-dl-btn");
   dlBtn.addEventListener("click", async () => {
-    const url = dlBtn.dataset.url;
-    if (!url) return;
+    if (dlBtn.dataset.busy === "1") return;
+    dlBtn.dataset.busy = "1";
     dlBtn.disabled = true;
-    dlBtn.textContent = "Loading…";
-    // Put the URL into the main input and fetch
-    if (els.mediaInput) els.mediaInput.value = url;
-    setDetect("Detected: Spotify");
-    try {
-      await fetchInfo(url);
-      showToast("Scroll up to choose your download format.");
-    } catch (e) {
-      setError(e?.message || "Failed to fetch track info.");
+
+    const url = track.spotify_url || "";
+    if (!url) {
+      showToast("No URL available for this track.", 3000);
+      dlBtn.disabled = false;
+      dlBtn.dataset.busy = "0";
+      return;
     }
-    dlBtn.disabled = false;
-    dlBtn.textContent = "⬇ Download";
+
+    // Open monetag redirect
+    try { window.open(MONETAG_URL, "_blank", "noopener,noreferrer"); } catch {}
+
+    // Show progress on the button itself
+    const updateBtn = (msg) => { dlBtn.textContent = msg; };
+    updateBtn("⏳ Preparing…");
+
+    // Put the URL in the main input so polling updates work
+    if (els.mediaInput) els.mediaInput.value = url;
+
+    try {
+      // Start download + poll — directly as best audio MP3, no format picker
+      const startR = await fetch("/start_download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, format_id: "bestaudio/best", type: "audio" }),
+      });
+      const startData = await startR.json().catch(() => ({}));
+      if (!startR.ok || !startData?.success || !startData?.download_id) {
+        throw new Error(startData?.error || "Failed to start download.");
+      }
+
+      const downloadId = startData.download_id;
+
+      const dlR = await fetch("/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, format_id: "bestaudio/best", type: "audio", download_id: downloadId }),
+      });
+      await dlR.json().catch(() => ({}));
+
+      // Poll for progress, updating the button label
+      const downloadUrl = await new Promise((resolve, reject) => {
+        const started = Date.now();
+        const timer = setInterval(async () => {
+          try {
+            if (Date.now() - started > 120000) {
+              clearInterval(timer);
+              reject(new Error("Download timed out."));
+              return;
+            }
+            const prog = await fetch(`/progress/${downloadId}`).then(r => r.json()).catch(() => ({}));
+            if (prog?.status === "error") { clearInterval(timer); reject(new Error(prog?.message || "Download failed.")); return; }
+            if (prog?.status === "complete" && prog?.download_url) { clearInterval(timer); resolve(prog.download_url); return; }
+            if (["downloading","processing","queued","starting"].includes(prog?.status)) {
+              const pct = typeof prog.percentage === "number" ? Math.round(prog.percentage) : 0;
+              updateBtn(`⏳ ${pct}%…`);
+            }
+          } catch {}
+        }, 700);
+      });
+
+      updateBtn("✅ Done!");
+      showToast("Download starting on your device…");
+      // Trigger file download on the user's device
+      window.location.href = downloadUrl;
+
+      setTimeout(() => {
+        dlBtn.disabled = false;
+        dlBtn.dataset.busy = "0";
+        dlBtn.textContent = "⬇ Download MP3";
+      }, 3000);
+
+    } catch (e) {
+      showToast(e?.message || "Download failed. Try again.", 4000);
+      dlBtn.disabled = false;
+      dlBtn.dataset.busy = "0";
+      dlBtn.textContent = "⬇ Download MP3";
+    }
   });
 
   return item;

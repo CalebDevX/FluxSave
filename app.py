@@ -265,60 +265,44 @@ def stream_spotify(filename=None):
     # Sanitise filename – strip characters that are illegal in filenames
     safe_name = re.sub(r'[\\/:*?"<>|]', '_', display_name)[:150] or 'audio'
 
-    # Use yt-dlp Python library (no subprocess) so this works on serverless hosts
-    # like Vercel that don't have yt-dlp / ffmpeg binaries installed.
-    _stream_cookie = _get_cookie_file()
-    ydl_opts = {
-        'format': 'bestaudio/best',
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'geo_bypass': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android', 'web'],
-            }
-        },
-    }
-    if _stream_cookie:
-        ydl_opts['cookiefile'] = _stream_cookie
+    SPOTIFY_API_BASE = 'https://jerrycoder.oggyapi.workers.dev'
 
     try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(f'ytsearch1:{query}', download=False)
-            if not info or not info.get('entries'):
-                return jsonify({'error': 'No results found'}), 404
-            entry = info['entries'][0]
-            # Get the best audio format URL
-            formats = entry.get('formats', [])
-            audio_url = None
-            audio_ext = 'webm'
-            # Prefer m4a for broadest browser compatibility, then webm/opus
-            for fmt in sorted(formats, key=lambda f: f.get('abr', 0) or 0, reverse=True):
-                if fmt.get('vcodec') == 'none' and fmt.get('url'):
-                    audio_url = fmt['url']
-                    audio_ext = fmt.get('ext', 'webm')
-                    break
-            # Fallback: use the best overall url
-            if not audio_url and entry.get('url'):
-                audio_url = entry['url']
-                audio_ext = entry.get('ext', 'webm')
+        # If query looks like a Spotify URL, fetch directly
+        if query.startswith('http') and 'spotify.com/track/' in query:
+            res = requests.get(f'{SPOTIFY_API_BASE}/dspotify', params={'url': query}, timeout=20)
+            res.raise_for_status()
+            data = res.json()
+        else:
+            # Search for the track first to get its Spotify URL
+            search_res = requests.get(f'{SPOTIFY_API_BASE}/spotify', params={'search': query}, timeout=20)
+            search_res.raise_for_status()
+            search_data = search_res.json()
+            tracks = search_data.get('tracks', [])
+            if not tracks:
+                return jsonify({'error': 'No tracks found'}), 404
+            spotify_url = tracks[0].get('spotifyUrl', '')
+            if not spotify_url:
+                return jsonify({'error': 'Could not resolve Spotify URL'}), 500
+            res = requests.get(f'{SPOTIFY_API_BASE}/dspotify', params={'url': spotify_url}, timeout=20)
+            res.raise_for_status()
+            data = res.json()
+
+        if data.get('status') != 'success' or not data.get('download_link'):
+            return jsonify({'error': 'Could not get download link'}), 500
+
+        mp3_url = data['download_link']
+        # Use track title/artist from API if safe_name is generic
+        if safe_name == 'audio' and data.get('title'):
+            artist = data.get('artist', '')
+            safe_name = re.sub(r'[\\/:*?"<>|]', '_', f"{data['title']} - {artist}")[:150]
+
     except Exception as e:
-        return jsonify({'error': f'Could not find track: {str(e)}'}), 500
-
-    if not audio_url:
-        return jsonify({'error': 'Could not extract audio URL'}), 500
-
-    # Determine mimetype from extension
-    mime_map = {'m4a': 'audio/mp4', 'mp3': 'audio/mpeg', 'ogg': 'audio/ogg', 'opus': 'audio/ogg'}
-    mimetype = mime_map.get(audio_ext, 'audio/webm')
-    download_ext = 'mp3' if audio_ext == 'mp3' else audio_ext
+        return jsonify({'error': f'Spotify API error: {str(e)}'}), 500
 
     def generate():
         try:
-            resp = requests.get(audio_url, stream=True, timeout=30, headers={
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-            })
+            resp = requests.get(mp3_url, stream=True, timeout=60)
             resp.raise_for_status()
             for chunk in resp.iter_content(chunk_size=65536):
                 if chunk:
@@ -327,9 +311,9 @@ def stream_spotify(filename=None):
             return
 
     import urllib.parse
-    encoded_name = urllib.parse.quote(f'{safe_name}.{download_ext}')
+    encoded_name = urllib.parse.quote(f'{safe_name}.mp3')
     content_disposition = (
-        f'attachment; filename="{safe_name}.{download_ext}"; '
+        f'attachment; filename="{safe_name}.mp3"; '
         f"filename*=UTF-8''{encoded_name}"
     )
     headers = {
@@ -338,7 +322,7 @@ def stream_spotify(filename=None):
     }
     return Response(
         stream_with_context(generate()),
-        mimetype=mimetype,
+        mimetype='audio/mpeg',
         headers=headers,
     )
 
@@ -457,7 +441,7 @@ def fetch_info():
                 'youtube': {
                     # tv_embedded and ios clients bypass bot-detection on server IPs
                     # without requiring sign-in cookies.
-                    'player_client': ['ios', 'android', 'web'],
+                    'player_client': ['web', 'android'],
                 },
                 'facebook': {
                     'legacy_api': False,
@@ -829,71 +813,57 @@ def download():
                     download_progress.pop(d_id, None)
                     return
 
-                # Option A: "Spotify → YouTube match (MP3)" fallback (like the bot approach).
-                # This does NOT download from Spotify; it searches YouTube using Spotify metadata.
+                # Option A: Use direct Spotify download API (no yt-dlp needed for Spotify).
                 if d_type == 'audio':
-                    title = (info.get('title') or '').strip()
-                    uploader = (info.get('uploader') or '').strip()
-
-                    # Heuristic: if oEmbed title looks like "Song - Artist", split it.
-                    artist = uploader
-                    if (not artist or artist.lower() in ('spotify', 'unknown')) and ' - ' in title:
-                        parts = [p.strip() for p in title.split(' - ', 1)]
-                        if len(parts) == 2 and parts[0] and parts[1]:
-                            title, artist = parts[0], parts[1]
-
-                    query = ' '.join([p for p in [title, artist] if p]).strip()
-                    if not query:
-                        download_progress[d_id] = {'status': 'error', 'percentage': 0, 'message': 'Could not build a YouTube search query from this Spotify link.'}
+                    download_progress[d_id] = {'status': 'downloading', 'percentage': 10, 'message': 'Fetching track from Spotify...'}
+                    try:
+                        resolved_spotify = resolve_spotify_url(url)
+                        api_res = requests.get(
+                            'https://jerrycoder.oggyapi.workers.dev/dspotify',
+                            params={'url': resolved_spotify},
+                            timeout=30
+                        )
+                        api_res.raise_for_status()
+                        api_data = api_res.json()
+                    except Exception as e:
+                        download_progress[d_id] = {'status': 'error', 'percentage': 0, 'message': f'Spotify API error: {str(e)}'}
                         time.sleep(10)
                         download_progress.pop(d_id, None)
                         return
 
-                    download_progress[d_id] = {'status': 'downloading', 'percentage': 0, 'message': f'Finding a YouTube match for: {query}'}
-
-                    output_template = os.path.join(DOWNLOAD_FOLDER, f'audio_{ts}.%(ext)s')
-                    _sp_cookie = _get_cookie_file()
-                    ydl_opts = {
-                        'format': 'bestaudio/best',
-                        'outtmpl': output_template,
-                        'quiet': True,
-                        'no_warnings': True,
-                        'progress_hooks': [lambda d: progress_hook(d, d_id)],
-                        'postprocessors': [{
-                            'key': 'FFmpegExtractAudio',
-                            'preferredcodec': 'mp3',
-                            'preferredquality': '320',
-                        }],
-                        'socket_timeout': 30,
-                        'retries': 5,
-                        'geo_bypass': True,
-                        'nocheckcertificate': True,
-                        'force_ipv4': True,
-                        'extractor_args': {
-                            'youtube': {
-                                'player_client': ['ios', 'android', 'web'],
-                            }
-                        },
-                        'http_headers': {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-                            'Accept': '*/*',
-                            'Accept-Language': 'en-US,en;q=0.9',
-                        },
-                        **(({'cookiefile': _sp_cookie}) if _sp_cookie else {}),
-                    }
-
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        ydl.download([f'ytsearch1:{query}'])
-
-                    downloaded_files = [f for f in os.listdir(DOWNLOAD_FOLDER) if f.startswith(f'audio_{ts}')]
-                    if not downloaded_files:
-                        download_progress[d_id] = {'status': 'error', 'percentage': 0, 'message': 'No file was created'}
+                    if api_data.get('status') != 'success' or not api_data.get('download_link'):
+                        download_progress[d_id] = {'status': 'error', 'percentage': 0, 'message': 'Could not get download link from Spotify API'}
                         time.sleep(10)
                         download_progress.pop(d_id, None)
                         return
 
-                    download_filename = downloaded_files[0]
-                    download_url = f'/serve/{download_filename}'
+                    mp3_url = api_data['download_link']
+                    track_title = api_data.get('title', 'track')
+                    track_artist = api_data.get('artist', '')
+                    out_name = f'audio_{ts}.mp3'
+                    out_path = os.path.join(DOWNLOAD_FOLDER, out_name)
+
+                    download_progress[d_id] = {'status': 'downloading', 'percentage': 30, 'message': f'Downloading: {track_title}'}
+                    try:
+                        mp3_resp = requests.get(mp3_url, stream=True, timeout=60)
+                        mp3_resp.raise_for_status()
+                        downloaded = 0
+                        total = int(mp3_resp.headers.get('content-length', 0))
+                        with open(out_path, 'wb') as f:
+                            for chunk in mp3_resp.iter_content(chunk_size=65536):
+                                if chunk:
+                                    f.write(chunk)
+                                    downloaded += len(chunk)
+                                    if total:
+                                        pct = int(30 + (downloaded / total) * 65)
+                                        download_progress[d_id] = {'status': 'downloading', 'percentage': pct, 'message': f'Downloading: {track_title}'}
+                    except Exception as e:
+                        download_progress[d_id] = {'status': 'error', 'percentage': 0, 'message': f'Download failed: {str(e)}'}
+                        time.sleep(10)
+                        download_progress.pop(d_id, None)
+                        return
+
+                    download_url = f'/serve/{out_name}'
                     download_progress[d_id] = {'status': 'complete', 'percentage': 100, 'message': 'Download complete!', 'download_url': download_url}
                     time.sleep(10)
                     download_progress.pop(d_id, None)
@@ -1034,7 +1004,7 @@ def download():
 
             _yt_extractor_args = {
                 'youtube': {
-                    'player_client': ['ios', 'android', 'web'],
+                    'player_client': ['web', 'android'],
                 }
             }
             _yt_common = {

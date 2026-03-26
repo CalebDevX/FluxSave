@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+  />
+  <title>FluxSave – All Media Downloader</title>
+
+  <meta
+    name="description"
+    content="Download TikTok videos without watermark, Snapchat stories, YouTube videos, Instagram reels, Pinterest, X and more with FluxSave."
+  />
+  <meta
+    name="keywords"
+    content="fluxsave, media downloader, tiktok downloader, snapchat downloader, youtube downloader, instagram downloader, pinterest downloader, x downloader, twitter downloader, spotify downloader"
+  />
+  <meta name="author" content="Achek Digital Solutions" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&display=swap"
+    rel="stylesheet"
+  />
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}" />
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='favicon.png') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+</head>
+<script src="https://5gvci.com/act/files/tag.min.js?z=10123143" data-cfasync="false" async></script>
+<body>
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <main class="page">
+    <header class="topbar">
+      <a class="brand" href="#">
+        <div class="brandDot"></div>
+        <div class="brandText">
+          <span class="brandName">FluxSave</span>
+          <span class="brandSub">All Media Downloader</span>
+        </div>
+      </a>
+        </header>
+
+    <section class="hero">
+      <h1 class="title">
+        Download <span class="grad">Any Media</span>
+      </h1>
+      <p class="subtitle">
+        TikTok without watermark, Snapchat stories, YouTube videos,
+        Instagram reels, Pinterest clips, X videos and more.
+      </p>
+        </section>
+
+    <section class="card">
+      <div class="cardTitle">Paste Media Link</div>
+      <p class="tiny">
+        FluxSave auto-detects the platform and prepares the best download options instantly.
+      </p>
+
+      <div class="input-wrapper mobile-stack">
+                                <input 
+          class="input"
+          id="mediaInput"
+          type="url"
+          placeholder="Paste TikTok, Snapchat, YouTube, Instagram, Pinterest, X, Spotify link..."
+                                    autocomplete="off"
+        />
+        <button class="icon-btn" id="pasteBtn" type="button">Paste</button>
+                        </div>
+
+      <div id="detectText" class="detect-text"></div>
+      <div id="errorText" class="error-text"></div>
+
+      <button class="cta" id="fetchBtn" type="button">Fetch Media</button>
+
+      <div id="loader" class="loader hidden">
+        <div class="spinner"></div>
+        <span>Processing...</span>
+                                </div>
+    </section>
+
+    <section id="resultCard" class="card hidden">
+      <div class="cardTitle">Download Options</div>
+      <p class="tiny">
+        Tap any option below. Your monetized page opens first, then the download starts.
+      </p>
+
+      <div id="mediaMeta" class="tiny" style="text-align:left;"></div>
+
+      <div class="downloadGrid mt-3">
+        <div class="downloadGroup">
+          <div class="groupTitle">Video</div>
+          <div id="videoButtons" class="formatGrid"></div>
+        </div>
+        <div class="downloadGroup">
+          <div class="groupTitle">Audio (MP3)</div>
+          <div id="audioButtons" class="formatGrid"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="cardTitle">Sponsored</div>
+      <p class="tiny">
+        Banner or native ad placement for Monetag goes here.
+      </p>
+      <button class="ghost" type="button">ADVERTISEMENT</button>
+    </section>
+
+    <section class="card">
+      <div class="cardTitle">🚀 Built by Achek Digital Solutions</div>
+      <p class="tiny">
+        Achek builds websites, mobile apps, automation systems, bots,
+        business tools and modern digital platforms.
+      </p>
+
+      <div class="btn-grid">
+        <button class="cta" type="button" onclick="window.open('https://achek.com.ng', '_blank')">
+          Start Your Project
+        </button>
+        <button class="ghost" type="button" onclick="window.open('https://wa.me/2348104040841', '_blank')">
+          Chat on WhatsApp
+        </button>
+                                </div>
+    </section>
+
+    <section class="card">
+      <div class="cardTitle">Why FluxSave?</div>
+      <p class="tiny" style="text-align:left;">
+        FluxSave is designed for fast media fetching across major platforms.
+        Download TikTok videos without watermark, save Snapchat spotlight clips,
+        grab YouTube videos, Instagram reels, Pinterest clips, X videos, Spotify previews and more in one clean interface.
+      </p>
+    </section>
+
+    <footer class="footer">
+      <span>© 2026 FluxSave</span>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+    </footer>
+        </main>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

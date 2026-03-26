@@ -5,6 +5,7 @@ import time
 import uuid
 import re
 import subprocess
+import tempfile
 from threading import Thread
 import requests
 import audiomack_downloader as amdl
@@ -14,7 +15,7 @@ import spotify_api as spa
 app = Flask(__name__)
 
 # Configuration
-DOWNLOAD_FOLDER = 'static/downloads'
+DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'downloads')
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 # Global dictionary to store download progress

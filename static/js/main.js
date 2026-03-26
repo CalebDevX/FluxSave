@@ -23,7 +23,7 @@ const els = {
   spotifyResultsList: document.getElementById("spotifyResultsList"),
 };
 
-const MONETAG_URL = "achek.com.ng";
+const MONETAG_URL = "https://www.profitablecpmratenetwork.com/gctgbsfhh4?key=9126b1f6ed1aa0deef1342eff621af96";
 let lastInfo = null;
 let activeDownload = { downloadId: null, pollTimer: null };
 

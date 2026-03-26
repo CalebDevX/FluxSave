@@ -21,6 +21,7 @@ os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 # Global dictionary to store download progress
 download_progress = {}
 
+
 # Cookie file support for bypassing YouTube bot detection on hosted servers.
 # Set the YOUTUBE_COOKIES env var to the contents of a Netscape-format cookies.txt file.
 # If YOUTUBE_COOKIES_FILE is set, it points directly to a cookies file path.
@@ -275,7 +276,7 @@ def stream_spotify(filename=None):
         'geo_bypass': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['tv_embedded', 'ios', 'web'],
+                'player_client': ['ios', 'android', 'web'],
             }
         },
     }
@@ -456,7 +457,7 @@ def fetch_info():
                 'youtube': {
                     # tv_embedded and ios clients bypass bot-detection on server IPs
                     # without requiring sign-in cookies.
-                    'player_client': ['tv_embedded', 'ios', 'web'],
+                    'player_client': ['ios', 'android', 'web'],
                 },
                 'facebook': {
                     'legacy_api': False,
@@ -870,7 +871,7 @@ def download():
                         'force_ipv4': True,
                         'extractor_args': {
                             'youtube': {
-                                'player_client': ['tv_embedded', 'ios', 'web'],
+                                'player_client': ['ios', 'android', 'web'],
                             }
                         },
                         'http_headers': {
@@ -1033,7 +1034,7 @@ def download():
 
             _yt_extractor_args = {
                 'youtube': {
-                    'player_client': ['tv_embedded', 'ios', 'web'],
+                    'player_client': ['ios', 'android', 'web'],
                 }
             }
             _yt_common = {
@@ -1057,7 +1058,7 @@ def download():
 
             if d_type == 'audio':
                 output_template = os.path.join(DOWNLOAD_FOLDER, f'audio_{ts}.%(ext)s')
-                chosen_fmt = fmt_id if fmt_id else 'bestaudio/best'
+                chosen_fmt = f'{fmt_id}/bestaudio/best' if fmt_id else 'bestaudio/best'
                 ydl_opts = {
                     **_yt_common,
                     'format': chosen_fmt,
@@ -1071,7 +1072,7 @@ def download():
                 }
             else:
                 output_template = os.path.join(DOWNLOAD_FOLDER, f'video_{ts}.%(ext)s')
-                chosen_fmt = fmt_id if fmt_id else 'bestvideo+bestaudio/best'
+                chosen_fmt = f'{fmt_id}+bestaudio/{fmt_id}/bestvideo+bestaudio/best' if fmt_id else 'bestvideo+bestaudio/best'
                 ydl_opts = {
                     **_yt_common,
                     'format': chosen_fmt,

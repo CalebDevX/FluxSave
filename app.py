@@ -1,8 +1,10 @@
-from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory, Response, stream_with_context
 import yt_dlp
 import os
 import time
 import uuid
+import re
+import subprocess
 from threading import Thread
 import requests
 import audiomack_downloader as amdl
@@ -214,6 +216,88 @@ def serve_download(filename):
 @app.route('/ads.txt')
 def ads_txt():
     return send_from_directory('.', 'ads.txt', mimetype='text/plain')
+
+@app.route('/stream-spotify')
+def stream_spotify():
+    """
+    Stream a Spotify track directly to the user's device without saving to disk.
+    Finds the song on YouTube, pipes yt-dlp + ffmpeg output straight to the browser.
+    Query params:
+      q    – search query (track title + artist)
+      name – desired filename (without extension)
+    """
+    query = request.args.get('q', '').strip()
+    display_name = request.args.get('name', 'audio').strip()
+
+    if not query:
+        return jsonify({'error': 'Query required'}), 400
+
+    # Sanitise filename – strip characters that are illegal in filenames
+    safe_name = re.sub(r'[\\/:*?"<>|]', '_', display_name)[:150] or 'audio'
+
+    # yt-dlp: search YouTube, pick best audio-only stream, write to stdout
+    ytdlp_cmd = [
+        'yt-dlp',
+        '--no-cache-dir',
+        '-f', 'bestaudio',
+        '-o', '-',
+        '--quiet',
+        '--no-warnings',
+        f'ytsearch1:{query}',
+    ]
+
+    # ffmpeg: read webm/opus from stdin, convert to 320 kbps MP3, write to stdout
+    ffmpeg_cmd = [
+        'ffmpeg', '-y',
+        '-i', 'pipe:0',
+        '-vn',
+        '-acodec', 'libmp3lame',
+        '-ab', '320k',
+        '-f', 'mp3',
+        'pipe:1',
+    ]
+
+    def generate():
+        ytdlp = subprocess.Popen(
+            ytdlp_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        ffmpeg = subprocess.Popen(
+            ffmpeg_cmd,
+            stdin=ytdlp.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+        # Release yt-dlp's stdout reference so it gets a SIGPIPE if ffmpeg dies
+        ytdlp.stdout.close()
+        try:
+            while True:
+                chunk = ffmpeg.stdout.read(65536)
+                if not chunk:
+                    break
+                yield chunk
+        finally:
+            try:
+                ffmpeg.kill()
+                ffmpeg.wait()
+            except Exception:
+                pass
+            try:
+                ytdlp.kill()
+                ytdlp.wait()
+            except Exception:
+                pass
+
+    headers = {
+        'Content-Disposition': f'attachment; filename="{safe_name}.mp3"',
+        'X-Accel-Buffering': 'no',
+    }
+    return Response(
+        stream_with_context(generate()),
+        mimetype='audio/mpeg',
+        headers=headers,
+    )
 
 @app.route('/fetch_info', methods=['POST'])
 def fetch_info():

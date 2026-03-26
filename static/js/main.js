@@ -390,88 +390,47 @@ function createSpotifyTrackItem(track) {
   `;
 
   const dlBtn = item.querySelector(".spotify-dl-btn");
-  dlBtn.addEventListener("click", async () => {
+  dlBtn.addEventListener("click", () => {
     if (dlBtn.dataset.busy === "1") return;
-    dlBtn.dataset.busy = "1";
-    dlBtn.disabled = true;
-
-    const url = track.spotify_url || "";
-    if (!url) {
-      showToast("No URL available for this track.", 3000);
-      dlBtn.disabled = false;
-      dlBtn.dataset.busy = "0";
-      return;
-    }
 
     // Open monetag redirect
     try { window.open(MONETAG_URL, "_blank", "noopener,noreferrer"); } catch {}
 
-    // Show progress on the button itself
-    const updateBtn = (msg) => { dlBtn.textContent = msg; };
-    updateBtn("⏳ Preparing…");
+    // Build search query and a clean filename from track metadata
+    const artistStr = Array.isArray(track.artists)
+      ? track.artists.join(", ")
+      : (track.artists || "");
+    const query = [track.title, artistStr].filter(Boolean).join(" ");
+    const displayName = [track.title, artistStr].filter(Boolean).join(" - ");
 
-    // Put the URL in the main input so polling updates work
-    if (els.mediaInput) els.mediaInput.value = url;
+    if (!query) {
+      showToast("Track info missing — cannot download.", 3000);
+      return;
+    }
 
-    try {
-      // Start download + poll — directly as best audio MP3, no format picker
-      const startR = await fetch("/start_download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, format_id: "bestaudio/best", type: "audio" }),
-      });
-      const startData = await startR.json().catch(() => ({}));
-      if (!startR.ok || !startData?.success || !startData?.download_id) {
-        throw new Error(startData?.error || "Failed to start download.");
-      }
+    // Stream directly to the user's device — no file saved on the server
+    const streamUrl = `/stream-spotify?q=${encodeURIComponent(query)}&name=${encodeURIComponent(displayName)}`;
 
-      const downloadId = startData.download_id;
+    dlBtn.dataset.busy = "1";
+    dlBtn.disabled = true;
+    dlBtn.textContent = "⏳ Starting…";
 
-      const dlR = await fetch("/download", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, format_id: "bestaudio/best", type: "audio", download_id: downloadId }),
-      });
-      await dlR.json().catch(() => ({}));
+    // Use a hidden <a> with the download attribute so the page doesn't navigate away
+    const a = document.createElement("a");
+    a.href = streamUrl;
+    a.download = `${displayName}.mp3`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
 
-      // Poll for progress, updating the button label
-      const downloadUrl = await new Promise((resolve, reject) => {
-        const started = Date.now();
-        const timer = setInterval(async () => {
-          try {
-            if (Date.now() - started > 120000) {
-              clearInterval(timer);
-              reject(new Error("Download timed out."));
-              return;
-            }
-            const prog = await fetch(`/progress/${downloadId}`).then(r => r.json()).catch(() => ({}));
-            if (prog?.status === "error") { clearInterval(timer); reject(new Error(prog?.message || "Download failed.")); return; }
-            if (prog?.status === "complete" && prog?.download_url) { clearInterval(timer); resolve(prog.download_url); return; }
-            if (["downloading","processing","queued","starting"].includes(prog?.status)) {
-              const pct = typeof prog.percentage === "number" ? Math.round(prog.percentage) : 0;
-              updateBtn(`⏳ ${pct}%…`);
-            }
-          } catch {}
-        }, 700);
-      });
+    showToast("Download started — check your downloads folder.", 4000);
 
-      updateBtn("✅ Done!");
-      showToast("Download starting on your device…");
-      // Trigger file download on the user's device
-      window.location.href = downloadUrl;
-
-      setTimeout(() => {
-        dlBtn.disabled = false;
-        dlBtn.dataset.busy = "0";
-        dlBtn.textContent = "⬇ Download MP3";
-      }, 3000);
-
-    } catch (e) {
-      showToast(e?.message || "Download failed. Try again.", 4000);
+    // Re-enable button after a moment so user can download again
+    setTimeout(() => {
       dlBtn.disabled = false;
       dlBtn.dataset.busy = "0";
       dlBtn.textContent = "⬇ Download MP3";
-    }
+    }, 4000);
   });
 
   return item;

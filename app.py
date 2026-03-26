@@ -5,7 +5,6 @@ import time
 import uuid
 import re
 import subprocess
-import tempfile
 from threading import Thread
 import requests
 import audiomack_downloader as amdl
@@ -15,11 +14,31 @@ import spotify_api as spa
 app = Flask(__name__)
 
 # Configuration
-DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'downloads')
+DOWNLOAD_FOLDER = 'static/downloads'
 os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 # Global dictionary to store download progress
 download_progress = {}
+
+# Cookie file support for bypassing YouTube bot detection on hosted servers.
+# Set the YOUTUBE_COOKIES env var to the contents of a Netscape-format cookies.txt file.
+# If YOUTUBE_COOKIES_FILE is set, it points directly to a cookies file path.
+_COOKIE_FILE_PATH = None
+
+def _get_cookie_file():
+    """Return a path to a YouTube cookies file, creating one from env var if needed."""
+    global _COOKIE_FILE_PATH
+    cookies_content = os.environ.get('YOUTUBE_COOKIES', '')
+    cookies_file = os.environ.get('YOUTUBE_COOKIES_FILE', '')
+    if cookies_file and os.path.isfile(cookies_file):
+        return cookies_file
+    if cookies_content:
+        if _COOKIE_FILE_PATH is None:
+            _COOKIE_FILE_PATH = '/tmp/yt_cookies.txt'
+        with open(_COOKIE_FILE_PATH, 'w') as f:
+            f.write(cookies_content)
+        return _COOKIE_FILE_PATH
+    return None
 
 
 def resolve_spotify_url(url: str) -> str:
@@ -244,65 +263,71 @@ def stream_spotify(filename=None):
     # Sanitise filename – strip characters that are illegal in filenames
     safe_name = re.sub(r'[\\/:*?"<>|]', '_', display_name)[:150] or 'audio'
 
-    # yt-dlp: search YouTube, pick best audio-only stream, write to stdout
-    ytdlp_cmd = [
-        'yt-dlp',
-        '--no-cache-dir',
-        '-f', 'bestaudio',
-        '-o', '-',
-        '--quiet',
-        '--no-warnings',
-        f'ytsearch1:{query}',
-    ]
+    # Use yt-dlp Python library (no subprocess) so this works on serverless hosts
+    # like Vercel that don't have yt-dlp / ffmpeg binaries installed.
+    _stream_cookie = _get_cookie_file()
+    ydl_opts = {
+        'format': 'bestaudio/best',
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
+        'geo_bypass': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['tv_embedded', 'ios', 'web'],
+            }
+        },
+    }
+    if _stream_cookie:
+        ydl_opts['cookiefile'] = _stream_cookie
 
-    # ffmpeg: read webm/opus from stdin, convert to 320 kbps MP3, write to stdout
-    ffmpeg_cmd = [
-        'ffmpeg', '-y',
-        '-i', 'pipe:0',
-        '-vn',
-        '-acodec', 'libmp3lame',
-        '-ab', '320k',
-        '-f', 'mp3',
-        'pipe:1',
-    ]
+    try:
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(f'ytsearch1:{query}', download=False)
+            if not info or not info.get('entries'):
+                return jsonify({'error': 'No results found'}), 404
+            entry = info['entries'][0]
+            # Get the best audio format URL
+            formats = entry.get('formats', [])
+            audio_url = None
+            audio_ext = 'webm'
+            # Prefer m4a for broadest browser compatibility, then webm/opus
+            for fmt in sorted(formats, key=lambda f: f.get('abr', 0) or 0, reverse=True):
+                if fmt.get('vcodec') == 'none' and fmt.get('url'):
+                    audio_url = fmt['url']
+                    audio_ext = fmt.get('ext', 'webm')
+                    break
+            # Fallback: use the best overall url
+            if not audio_url and entry.get('url'):
+                audio_url = entry['url']
+                audio_ext = entry.get('ext', 'webm')
+    except Exception as e:
+        return jsonify({'error': f'Could not find track: {str(e)}'}), 500
+
+    if not audio_url:
+        return jsonify({'error': 'Could not extract audio URL'}), 500
+
+    # Determine mimetype from extension
+    mime_map = {'m4a': 'audio/mp4', 'mp3': 'audio/mpeg', 'ogg': 'audio/ogg', 'opus': 'audio/ogg'}
+    mimetype = mime_map.get(audio_ext, 'audio/webm')
+    download_ext = 'mp3' if audio_ext == 'mp3' else audio_ext
 
     def generate():
-        ytdlp = subprocess.Popen(
-            ytdlp_cmd,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
-        ffmpeg = subprocess.Popen(
-            ffmpeg_cmd,
-            stdin=ytdlp.stdout,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-        )
-        # Release yt-dlp's stdout reference so it gets a SIGPIPE if ffmpeg dies
-        ytdlp.stdout.close()
         try:
-            while True:
-                chunk = ffmpeg.stdout.read(65536)
-                if not chunk:
-                    break
-                yield chunk
-        finally:
-            try:
-                ffmpeg.kill()
-                ffmpeg.wait()
-            except Exception:
-                pass
-            try:
-                ytdlp.kill()
-                ytdlp.wait()
-            except Exception:
-                pass
+            resp = requests.get(audio_url, stream=True, timeout=30, headers={
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+            })
+            resp.raise_for_status()
+            for chunk in resp.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+        except Exception:
+            return
 
-    # Use both filename= (ASCII fallback) and filename*= (RFC 5987 UTF-8) for max compatibility
     import urllib.parse
-    encoded_name = urllib.parse.quote(f'{safe_name}.mp3')
+    encoded_name = urllib.parse.quote(f'{safe_name}.{download_ext}')
     content_disposition = (
-        f'attachment; filename="{safe_name}.mp3"; '
+        f'attachment; filename="{safe_name}.{download_ext}"; '
         f"filename*=UTF-8''{encoded_name}"
     )
     headers = {
@@ -311,7 +336,7 @@ def stream_spotify(filename=None):
     }
     return Response(
         stream_with_context(generate()),
-        mimetype='audio/mpeg',
+        mimetype=mimetype,
         headers=headers,
     )
 
@@ -428,8 +453,9 @@ def fetch_info():
                     'webpage_download': True,
                 },
                 'youtube': {
-                    # Prefer stable clients; avoid skipping manifests here.
-                    'player_client': ['web', 'android'],
+                    # tv_embedded and ios clients bypass bot-detection on server IPs
+                    # without requiring sign-in cookies.
+                    'player_client': ['tv_embedded', 'ios', 'web'],
                 },
                 'facebook': {
                     'legacy_api': False,
@@ -437,6 +463,9 @@ def fetch_info():
             },
             'force_generic_extractor': False,
         }
+        cookie_file = _get_cookie_file()
+        if cookie_file:
+            ydl_opts['cookiefile'] = cookie_file
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(url, download=False)
@@ -821,6 +850,7 @@ def download():
                     download_progress[d_id] = {'status': 'downloading', 'percentage': 0, 'message': f'Finding a YouTube match for: {query}'}
 
                     output_template = os.path.join(DOWNLOAD_FOLDER, f'audio_{ts}.%(ext)s')
+                    _sp_cookie = _get_cookie_file()
                     ydl_opts = {
                         'format': 'bestaudio/best',
                         'outtmpl': output_template,
@@ -837,11 +867,17 @@ def download():
                         'geo_bypass': True,
                         'nocheckcertificate': True,
                         'force_ipv4': True,
+                        'extractor_args': {
+                            'youtube': {
+                                'player_client': ['tv_embedded', 'ios', 'web'],
+                            }
+                        },
                         'http_headers': {
                             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
                             'Accept': '*/*',
                             'Accept-Language': 'en-US,en;q=0.9',
                         },
+                        **(({'cookiefile': _sp_cookie}) if _sp_cookie else {}),
                     }
 
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -994,52 +1030,53 @@ def download():
                 download_progress.pop(d_id, None)
                 return
 
+            _yt_extractor_args = {
+                'youtube': {
+                    'player_client': ['tv_embedded', 'ios', 'web'],
+                }
+            }
+            _yt_common = {
+                'quiet': True,
+                'no_warnings': True,
+                'socket_timeout': 30,
+                'retries': 5,
+                'geo_bypass': True,
+                'nocheckcertificate': True,
+                'force_ipv4': True,
+                'extractor_args': _yt_extractor_args,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                },
+            }
+            _cookie_file = _get_cookie_file()
+            if _cookie_file:
+                _yt_common['cookiefile'] = _cookie_file
+
             if d_type == 'audio':
                 output_template = os.path.join(DOWNLOAD_FOLDER, f'audio_{ts}.%(ext)s')
                 chosen_fmt = fmt_id if fmt_id else 'bestaudio/best'
                 ydl_opts = {
+                    **_yt_common,
                     'format': chosen_fmt,
                     'outtmpl': output_template,
-                    'quiet': True,
-                    'no_warnings': True,
                     'progress_hooks': [lambda d: progress_hook(d, d_id)],
                     'postprocessors': [{
                         'key': 'FFmpegExtractAudio',
                         'preferredcodec': 'mp3',
                         'preferredquality': '320',
                     }],
-                    'socket_timeout': 30,
-                    'retries': 5,
-                    'geo_bypass': True,
-                    'nocheckcertificate': True,
-                    # Don't force an invalid source_address on Render
-                    'force_ipv4': True,
-                    'http_headers': {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-                        'Accept': '*/*',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                    },
                 }
             else:
                 output_template = os.path.join(DOWNLOAD_FOLDER, f'video_{ts}.%(ext)s')
                 chosen_fmt = fmt_id if fmt_id else 'bestvideo+bestaudio/best'
                 ydl_opts = {
+                    **_yt_common,
                     'format': chosen_fmt,
                     'outtmpl': output_template,
-                    'quiet': True,
-                    'no_warnings': True,
                     'merge_output_format': 'mp4',
                     'progress_hooks': [lambda d: progress_hook(d, d_id)],
-                    'socket_timeout': 30,
-                    'retries': 5,
-                    'geo_bypass': True,
-                    'nocheckcertificate': True,
-                    'force_ipv4': True,
-                    'http_headers': {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
-                        'Accept': '*/*',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                    },
                 }
 
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:

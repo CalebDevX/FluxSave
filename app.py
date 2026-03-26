@@ -17,8 +17,7 @@ app = Flask(__name__)
 
 # Configuration
 DOWNLOAD_FOLDER = os.path.join(tempfile.gettempdir(), 'downloads')
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
-# Global dictionary to store download progress
+os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)# Global dictionary to store download progress
 download_progress = {}
 
 
@@ -414,6 +413,10 @@ def fetch_info():
             'quiet': True,
             'no_warnings': True,
             'extract_flat': False,
+            # Setting a format prevents yt-dlp raising "Requested format is not available"
+            # during extract_info. The full formats list is still returned regardless.
+            'format': 'bestaudio/best',
+            'ignore_no_formats_error': True,
             'socket_timeout': 30,
             'retries': 5,
             'geo_bypass': True,

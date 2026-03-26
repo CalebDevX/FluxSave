@@ -456,8 +456,10 @@ body {
   color: white;
   margin-bottom: 4px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
 }
 
 .meta-sub {
@@ -730,6 +732,21 @@ body {
   .spotify-track-info {
     flex: 1;
     min-width: 0;
+    overflow: hidden;
+  }
+
+  .spotify-track-title {
+    white-space: normal;
+    word-break: break-word;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .spotify-track-artist {
+    white-space: normal;
+    word-break: break-word;
   }
 
   .spotify-track-duration {

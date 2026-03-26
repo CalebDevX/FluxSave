@@ -203,6 +203,14 @@ def service_worker():
 def robots():
     return send_from_directory('.', 'robots.txt', mimetype='text/plain')
 
+@app.route('/serve/<path:filename>')
+def serve_download(filename):
+    """Serve a file from the downloads folder forcing browser download (not inline playback)."""
+    from flask import make_response
+    resp = make_response(send_from_directory(DOWNLOAD_FOLDER, filename))
+    resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return resp
+
 @app.route('/ads.txt')
 def ads_txt():
     return send_from_directory('.', 'ads.txt', mimetype='text/plain')
@@ -692,7 +700,7 @@ def download():
 
                 # Option A: "Spotify → YouTube match (MP3)" fallback (like the bot approach).
                 # This does NOT download from Spotify; it searches YouTube using Spotify metadata.
-                if d_type == 'audio' and (fmt_id == 'spotify_youtube' or not fmt_id):
+                if d_type == 'audio':
                     title = (info.get('title') or '').strip()
                     uploader = (info.get('uploader') or '').strip()
 
@@ -747,7 +755,7 @@ def download():
                         return
 
                     download_filename = downloaded_files[0]
-                    download_url = f'/static/downloads/{download_filename}'
+                    download_url = f'/serve/{download_filename}'
                     download_progress[d_id] = {'status': 'complete', 'percentage': 100, 'message': 'Download complete!', 'download_url': download_url}
                     time.sleep(10)
                     download_progress.pop(d_id, None)
@@ -798,7 +806,7 @@ def download():
                     download_progress.pop(d_id, None)
                     return
 
-                download_url = f'/static/downloads/{out_name}'
+                download_url = f'/serve/{out_name}'
                 download_progress[d_id] = {
                     'status': 'complete',
                     'percentage': 100,
@@ -874,7 +882,7 @@ def download():
                     return
 
                 # completed
-                download_url = f'/static/downloads/{out_name}'
+                download_url = f'/serve/{out_name}'
                 download_progress[d_id] = {
                     'status': 'complete',
                     'percentage': 100,
@@ -947,7 +955,7 @@ def download():
                 return
 
             download_filename = downloaded_files[0]
-            download_url = f'/static/downloads/{download_filename}'
+            download_url = f'/serve/{download_filename}'
 
             download_progress[d_id] = {
                 'status': 'complete',

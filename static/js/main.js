@@ -189,7 +189,8 @@ function renderMeta(info) {
   if (!els.mediaMeta) return;
   const title = escapeHtml(info?.title || "Unknown Title");
   const uploader = escapeHtml(info?.uploader || "");
-  const duration = escapeHtml(info?.duration || "");
+  const rawDur = info?.duration;
+  const duration = (rawDur && rawDur !== "Unknown") ? escapeHtml(String(rawDur)) : "";
   const thumb = escapeHtml(info?.thumbnail || "");
 
   els.mediaMeta.innerHTML = `

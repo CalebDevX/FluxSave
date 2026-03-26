@@ -14,8 +14,13 @@ import spotify_api as spa
 app = Flask(__name__)
 
 # Configuration
-DOWNLOAD_FOLDER = 'static/downloads'
-os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+# Vercel and other serverless hosts have a read-only filesystem except for /tmp
+try:
+    DOWNLOAD_FOLDER = 'static/downloads'
+    os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
+except OSError:
+    DOWNLOAD_FOLDER = '/tmp/downloads'
+    os.makedirs(DOWNLOAD_FOLDER, exist_ok=True)
 
 # Global dictionary to store download progress
 download_progress = {}

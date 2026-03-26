@@ -23,7 +23,7 @@ const els = {
   spotifyResultsList: document.getElementById("spotifyResultsList"),
 };
 
-const MONETAG_URL = "https://omg10.com/4/10753737";
+const MONETAG_URL = "achek.com.ng";
 let lastInfo = null;
 let activeDownload = { downloadId: null, pollTimer: null };
 

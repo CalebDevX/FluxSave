@@ -408,8 +408,10 @@ function createSpotifyTrackItem(track) {
       return;
     }
 
-    // Stream directly to the user's device — no file saved on the server
-    const streamUrl = `/stream-spotify?q=${encodeURIComponent(query)}&name=${encodeURIComponent(displayName)}`;
+    // Stream directly to the user's device — no file saved on the server.
+    // Filename is embedded in the URL path so the browser always saves it correctly.
+    const safeName = displayName.replace(/[\\/:*?"<>|]/g, "_").substring(0, 150) || "audio";
+    const streamUrl = `/stream-spotify/${encodeURIComponent(safeName)}.mp3?q=${encodeURIComponent(query)}`;
 
     dlBtn.dataset.busy = "1";
     dlBtn.disabled = true;
@@ -418,7 +420,7 @@ function createSpotifyTrackItem(track) {
     // Use a hidden <a> with the download attribute so the page doesn't navigate away
     const a = document.createElement("a");
     a.href = streamUrl;
-    a.download = `${displayName}.mp3`;
+    a.download = `${safeName}.mp3`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);

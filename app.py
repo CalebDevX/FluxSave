@@ -217,20 +217,28 @@ def serve_download(filename):
 def ads_txt():
     return send_from_directory('.', 'ads.txt', mimetype='text/plain')
 
+@app.route('/stream-spotify/<path:filename>')
 @app.route('/stream-spotify')
-def stream_spotify():
+def stream_spotify(filename=None):
     """
     Stream a Spotify track directly to the user's device without saving to disk.
     Finds the song on YouTube, pipes yt-dlp + ffmpeg output straight to the browser.
+    The filename is embedded in the URL path so browsers use it as the download name.
     Query params:
-      q    – search query (track title + artist)
-      name – desired filename (without extension)
+      q – search query (track title + artist)
     """
     query = request.args.get('q', '').strip()
-    display_name = request.args.get('name', 'audio').strip()
 
     if not query:
         return jsonify({'error': 'Query required'}), 400
+
+    # Derive safe filename from URL path segment (strip .mp3 extension if present)
+    if filename:
+        display_name = filename
+        if display_name.lower().endswith('.mp3'):
+            display_name = display_name[:-4]
+    else:
+        display_name = request.args.get('name', 'audio').strip()
 
     # Sanitise filename – strip characters that are illegal in filenames
     safe_name = re.sub(r'[\\/:*?"<>|]', '_', display_name)[:150] or 'audio'
@@ -289,8 +297,15 @@ def stream_spotify():
             except Exception:
                 pass
 
+    # Use both filename= (ASCII fallback) and filename*= (RFC 5987 UTF-8) for max compatibility
+    import urllib.parse
+    encoded_name = urllib.parse.quote(f'{safe_name}.mp3')
+    content_disposition = (
+        f'attachment; filename="{safe_name}.mp3"; '
+        f"filename*=UTF-8''{encoded_name}"
+    )
     headers = {
-        'Content-Disposition': f'attachment; filename="{safe_name}.mp3"',
+        'Content-Disposition': content_disposition,
         'X-Accel-Buffering': 'no',
     }
     return Response(

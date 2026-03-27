@@ -1,162 +1,377 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audiomack Downloader - Download Audiomack Music & Songs | Free MP3 Nigeria</title>
-    <!-- AMP Auto Ads Script -->
-    <script src="https://pl28985677.profitablecpmratenetwork.com/21/22/7a/21227a1724ac92506f62defcbeb5d653.js"></script>
-<script src="https://pl28985677.profitablecpmratenetwork.com/21/22/7a/21227a1724ac92506f62defcbeb5d653.js"></script>
-<meta name="description" content="Download Audiomack music and songs as MP3. Free Audiomack downloader Nigeria - save your favorite Afrobeats, Hip-Hop tracks. No signup required.">
-    <meta name="keywords" content="audiomack downloader, download audiomack music, audiomack to mp3, download audiomack songs Nigeria, save audiomack tracks, free audiomack downloader">
-    <link rel="canonical" href="https://fluxsave.achek.com.ng/audiomack-downloader">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Audiomack Downloader - Download Audiomack Songs Free | FluxSave</title>
+  <meta name="description" content="Download any Audiomack song or album as MP3 for free. Paste your Audiomack link, fetch the track details and download straight to your device — no signup needed." />
+  <meta name="keywords" content="audiomack downloader, download audiomack songs, audiomack to mp3, audiomack music downloader, download afrobeats audiomack, free audiomack downloader Nigeria" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://fluxsave.achek.com.ng/audiomack-downloader" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://fluxsave.achek.com.ng/audiomack-downloader" />
+  <meta property="og:title" content="Audiomack Downloader - Free MP3 | FluxSave" />
+  <meta property="og:description" content="Download any Audiomack song as MP3. Paste a link, tap download — it saves straight to your device. Free and no signup needed." />
+  <meta property="og:image" content="https://fluxsave.achek.com.ng/static/favicon.png" />
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "FluxSave Audiomack Downloader",
+    "url": "https://fluxsave.achek.com.ng/audiomack-downloader",
+    "description": "Download Audiomack songs, albums and playlists as MP3 for free. No signup required.",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "All",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+
+  <script src="https://pl28985677.profitablecpmratenetwork.com/21/22/7a/21227a1724ac92506f62defcbeb5d653.js"></script>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    .am-container { max-width: 900px; margin: 0 auto; padding: 20px; }
+    .am-card { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,.1); margin-bottom: 30px; }
+    .am-input { width: 100%; padding: 15px 20px; border: 2px solid #e1e5e9; border-radius: 10px; font-size: 16px; box-sizing: border-box; transition: border-color .3s; }
+    .am-input:focus { outline: none; border-color: #FF8800; }
+    .am-btn { background: #FF8800; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background-color .3s; }
+    .am-btn:hover { background: #e07800; }
+    .am-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .am-input-row { display: flex; gap: 12px; margin-bottom: 16px; }
+    .am-input-row .am-input { flex: 1; }
+    .am-music-card { background: #fff8f0; padding: 30px; border-radius: 15px; border: 2px solid #FF8800; margin-bottom: 30px; box-shadow: 0 4px 20px rgba(255,136,0,.15); }
+    .am-meta { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; }
+    .am-meta img { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; }
+    .am-meta-title { font-size: 1.15rem; font-weight: 700; color: #333; }
+    .am-meta-sub { color: #666; font-size: 14px; margin-top: 4px; }
+    .am-dl-btn { background: #FF8800; color: white; border: none; padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; width: 100%; max-width: 320px; display: block; margin: 0 auto; transition: background-color .3s; }
+    .am-dl-btn:hover { background: #e07800; }
+    .am-dl-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .am-status { text-align: center; color: #555; margin-top: 10px; font-size: 14px; }
+    .am-error { color: #c33; background: #fee; padding: 12px 16px; border-radius: 8px; border-left: 4px solid #c33; margin-bottom: 16px; }
+    .am-detect { color: #1DB954; font-size: 14px; margin-bottom: 8px; }
+    .am-loader { display: flex; align-items: center; justify-content: center; gap: 12px; padding: 16px 0; color: #555; }
+    .am-spinner { width: 24px; height: 24px; border: 3px solid #f3f3f3; border-top: 3px solid #FF8800; border-radius: 50%; animation: am-spin 1s linear infinite; }
+    @keyframes am-spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .am-features { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 20px; margin-top: 30px; }
+    .am-feature { text-align: center; padding: 24px 16px; background: #f8f9fa; border-radius: 10px; }
+    .am-feature-icon { font-size: 40px; color: #FF8800; margin-bottom: 12px; }
+    .am-faq-item { padding: 20px; background: #f8f9fa; border-radius: 10px; margin-bottom: 16px; }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 12px 24px; border-radius: 24px; font-size: 14px; z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,.3); }
+    .hidden { display: none !important; }
+    @media (max-width: 600px) {
+      .am-input-row { flex-direction: column; }
+      .am-meta { flex-direction: column; text-align: center; }
+    }
+  </style>
 </head>
 <body>
-    <!-- AMP Auto Ads Element -->
-    <amp-auto-ads type="adsense"
-            data-ad-client="ca-pub-5807971758805138">
-    </amp-auto-ads>
-    <div class="modern-container">
-        <header class="modern-header">
-            <div class="header-content">
-                <div class="logo-section">
-                    <a href="/" style="display: flex; align-items: center; gap: 15px; text-decoration: none;">
-                        <div class="logo-icon"><i class="fas fa-download"></i></div>
-                        <div class="logo-text">
-                            <h1>Media Downloader</h1>
-                            <p class="logo-subtitle">By Achek Digital Solutions</p>
-                        </div>
-                    </a>
-                </div>
-                <div class="header-actions">
-                    <a href="/" class="header-btn"><i class="fas fa-home"></i> Home</a>
-                </div>
+  <div class="modern-container">
+    <header class="modern-header">
+      <div class="header-content">
+        <div class="logo-section">
+          <a href="/" style="display:flex;align-items:center;gap:15px;text-decoration:none;">
+            <div class="logo-icon"><i class="fas fa-download"></i></div>
+            <div class="logo-text">
+              <h1>FluxSave</h1>
+              <p class="logo-subtitle">By Achek Digital Solutions</p>
             </div>
-        </header>
+          </a>
+        </div>
+        <div class="header-actions">
+          <a href="/" class="header-btn"><i class="fas fa-home"></i> Home</a>
+        </div>
+      </div>
+    </header>
 
-        <section class="hero-section">
-            <div class="hero-content">
-                <h2 class="hero-title">Audiomack Downloader - Download Audiomack Music & Songs as MP3</h2>
-                <p class="hero-description">Free Audiomack downloader for Nigeria - download Afrobeats, Hip-Hop, and all your favorite tracks in MP3!</p>
-            </div>
-        </section>
+    <section class="hero-section">
+      <div class="hero-content">
+        <h2 class="hero-title">Audiomack Song Downloader</h2>
+        <p class="hero-description">Paste any Audiomack link — we'll fetch the track details and let you download it as MP3 straight to your device. Fast, free, no signup.</p>
+      </div>
+    </section>
 
-        <main class="main-section">
-            <div class="main-content">
-                <div style="background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-bottom: 30px;">
-                    <h2 style="color: #FF8800; margin-bottom: 20px;"><i class="fas fa-music"></i> How to Download Audiomack Music</h2>
-                    
-                    <div style="display: grid; gap: 20px;">
-                        <div style="padding: 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #FF8800;">
-                            <h3 style="color: #333; margin-bottom: 10px;">Step 1: Open Audiomack</h3>
-                            <p>Open Audiomack app or website and find the song, album, or playlist you want to download.</p>
-                        </div>
-                        
-                        <div style="padding: 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #FF8800;">
-                            <h3 style="color: #333; margin-bottom: 10px;">Step 2: Copy Track Link</h3>
-                            <p>Click the share icon and select "Copy Link" to copy the Audiomack track URL.</p>
-                        </div>
-                        
-                        <div style="padding: 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #FF8800;">
-                            <h3 style="color: #333; margin-bottom: 10px;">Step 3: Paste Link Here</h3>
-                            <p>Return to our homepage and paste the Audiomack link in the download box.</p>
-                        </div>
-                        
-                        <div style="padding: 20px; background: #f8f9fa; border-radius: 10px; border-left: 4px solid #FF8800;">
-                            <h3 style="color: #333; margin-bottom: 10px;">Step 4: Download MP3</h3>
-                            <p>Click download and save your favorite Audiomack music as MP3 to your device!</p>
-                        </div>
-                    </div>
+    <div class="am-container">
 
-                    <div style="margin-top: 30px; text-align: center;">
-                        <a href="/" class="btn-success" style="display: inline-block; padding: 16px 40px;">
-                            <i class="fas fa-download"></i> Start Downloading Audiomack Music
-                        </a>
-                    </div>
-                </div>
+      <!-- Download section -->
+      <div class="am-card">
+        <h2 style="color:#FF8800;margin-bottom:8px;"><i class="fas fa-music"></i> Paste Your Audiomack Link</h2>
+        <p style="color:#666;margin-bottom:24px;">Copy the song link from Audiomack and paste it below. Tap Fetch Track to load the details, then download with one tap.</p>
 
-                <div style="background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); margin-bottom: 30px;">
-                    <h2 style="margin-bottom: 20px;"><i class="fas fa-star"></i> Audiomack Downloader Features</h2>
-                    
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
-                        <div style="text-align: center; padding: 20px;">
-                            <div style="font-size: 48px; color: #FF8800; margin-bottom: 10px;"><i class="fas fa-music"></i></div>
-                            <h3 style="color: #333;">High Quality MP3</h3>
-                            <p>Download Audiomack songs in 320kbps MP3 quality</p>
-                        </div>
-                        
-                        <div style="text-align: center; padding: 20px;">
-                            <div style="font-size: 48px; color: #FF8800; margin-bottom: 10px;"><i class="fas fa-globe-africa"></i></div>
-                            <h3 style="color: #333;">Nigeria's #1 Choice</h3>
-                            <p>Perfect for Afrobeats, Hip-Hop, and African music</p>
-                        </div>
-                        
-                        <div style="text-align: center; padding: 20px;">
-                            <div style="font-size: 48px; color: #FF8800; margin-bottom: 10px;"><i class="fas fa-bolt"></i></div>
-                            <h3 style="color: #333;">Fast Downloads</h3>
-                            <p>Quick and reliable Audiomack music downloads</p>
-                        </div>
-                        
-                        <div style="text-align: center; padding: 20px;">
-                            <div style="font-size: 48px; color: #FF8800; margin-bottom: 10px;"><i class="fas fa-unlock"></i></div>
-                            <h3 style="color: #333;">100% Free</h3>
-                            <p>No subscription required, unlimited downloads</p>
-                        </div>
-                    </div>
-                </div>
+        <div class="am-input-row">
+          <input class="am-input" id="amLinkInput" type="url" placeholder="Paste Audiomack track or album link here…" autocomplete="off" />
+          <button class="am-btn" id="amPasteBtn" type="button" style="padding:15px 20px;"><i class="fas fa-paste"></i> Paste</button>
+        </div>
 
-                <div style="background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.1);">
-                    <h2 style="margin-bottom: 20px;"><i class="fas fa-question-circle"></i> Audiomack Downloader FAQ</h2>
-                    
-                    <div style="display: grid; gap: 20px;">
-                        <div style="padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                            <h3 style="color: #333; margin-bottom: 10px;">Can I download Audiomack music for free?</h3>
-                            <p>Yes! Our Audiomack downloader is 100% free. Download unlimited songs without any subscription.</p>
-                        </div>
-                        
-                        <div style="padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                            <h3 style="color: #333; margin-bottom: 10px;">What music can I download from Audiomack?</h3>
-                            <p>You can download Afrobeats, Hip-Hop, R&B, Gospel, and all genres available on Audiomack as MP3.</p>
-                        </div>
-                        
-                        <div style="padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                            <h3 style="color: #333; margin-bottom: 10px;">Does it work in Nigeria?</h3>
-                            <p>Absolutely! Our Audiomack downloader is optimized for Nigeria and works perfectly across the country.</p>
-                        </div>
-                        
-                        <div style="padding: 20px; background: #f8f9fa; border-radius: 10px;">
-                            <h3 style="color: #333; margin-bottom: 10px;">Can I download Audiomack playlists?</h3>
-                            <p>Yes! You can download individual tracks, albums, and entire playlists from Audiomack.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </main>
+        <div id="amDetectText" class="am-detect"></div>
+        <div id="amErrorText" class="am-error hidden"></div>
 
-        <footer class="modern-footer">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>Media Downloader</h4>
-                    <p>Professional video and music downloader by Achek Digital Solutions</p>
-                </div>
-                <div class="footer-section">
-                    <h4>Achek Digital Solutions</h4>
-                    <div class="footer-links">
-                        <a href="https://achek.com.ng" target="_blank" rel="noopener"><i class="fas fa-globe"></i> achek.com.ng</a>
-                        <a href="https://wa.me/2348104040841" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> +234 810 404 0841</a>
-                    </div>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2025 Achek Digital Solutions. All rights reserved.</p>
-            </div>
-        </footer>
+        <button class="am-btn" id="amFetchBtn" type="button" style="width:100%;max-width:300px;display:block;margin:0 auto;">
+          <i class="fas fa-search"></i> Fetch Track
+        </button>
+
+        <div id="amLoader" class="am-loader hidden">
+          <div class="am-spinner"></div>
+          <span>Looking up your track…</span>
+        </div>
+      </div>
+
+      <!-- Music card (shown after successful fetch) -->
+      <div id="amMusicCard" class="am-music-card hidden">
+        <h3 style="color:#FF8800;margin-bottom:16px;"><i class="fas fa-music"></i> Track Ready</h3>
+        <div id="amMusicMeta" class="am-meta"></div>
+        <button class="am-dl-btn" id="amDownloadBtn" type="button">
+          <i class="fas fa-download"></i> Download MP3
+        </button>
+        <div id="amMusicStatus" class="am-status"></div>
+      </div>
+
+      <!-- Features -->
+      <div class="am-card">
+        <h2 style="margin-bottom:20px;"><i class="fas fa-star"></i> Why Use FluxSave for Audiomack?</h2>
+        <div class="am-features">
+          <div class="am-feature">
+            <div class="am-feature-icon"><i class="fas fa-music"></i></div>
+            <h3 style="color:#333;margin-bottom:8px;">High Quality MP3</h3>
+            <p style="color:#666;">Download Audiomack songs in the best available quality.</p>
+          </div>
+          <div class="am-feature">
+            <div class="am-feature-icon"><i class="fas fa-globe-africa"></i></div>
+            <h3 style="color:#333;margin-bottom:8px;">Nigeria's Favorite</h3>
+            <p style="color:#666;">Perfect for Afrobeats, Hip-Hop, Gospel and all African music.</p>
+          </div>
+          <div class="am-feature">
+            <div class="am-feature-icon"><i class="fas fa-bolt"></i></div>
+            <h3 style="color:#333;margin-bottom:8px;">One-Tap Download</h3>
+            <p style="color:#666;">Paste link → fetch → download. No format options, no fuss.</p>
+          </div>
+          <div class="am-feature">
+            <div class="am-feature-icon"><i class="fas fa-unlock"></i></div>
+            <h3 style="color:#333;margin-bottom:8px;">100% Free</h3>
+            <p style="color:#666;">No subscription, no signup — unlimited downloads.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- How to use -->
+      <div class="am-card">
+        <h2 style="margin-bottom:24px;"><i class="fas fa-list-ol"></i> How to Download Audiomack Music</h2>
+        <div style="display:grid;gap:16px;">
+          <div style="padding:20px;background:#f8f9fa;border-radius:10px;border-left:4px solid #FF8800;">
+            <h3 style="color:#333;margin-bottom:8px;">Step 1: Open Audiomack</h3>
+            <p style="color:#666;">Open the Audiomack app or website and find the song you want to download.</p>
+          </div>
+          <div style="padding:20px;background:#f8f9fa;border-radius:10px;border-left:4px solid #FF8800;">
+            <h3 style="color:#333;margin-bottom:8px;">Step 2: Copy the Link</h3>
+            <p style="color:#666;">Tap the share icon and select "Copy Link" to copy the song URL.</p>
+          </div>
+          <div style="padding:20px;background:#f8f9fa;border-radius:10px;border-left:4px solid #FF8800;">
+            <h3 style="color:#333;margin-bottom:8px;">Step 3: Paste and Fetch</h3>
+            <p style="color:#666;">Paste the link above and tap "Fetch Track" to load the song details.</p>
+          </div>
+          <div style="padding:20px;background:#f8f9fa;border-radius:10px;border-left:4px solid #FF8800;">
+            <h3 style="color:#333;margin-bottom:8px;">Step 4: Download</h3>
+            <p style="color:#666;">Tap "Download MP3" and the file saves straight to your device's downloads folder.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ -->
+      <div class="am-card">
+        <h2 style="margin-bottom:20px;"><i class="fas fa-question-circle"></i> FAQ</h2>
+        <div class="am-faq-item">
+          <h3 style="color:#333;margin-bottom:8px;">Can I download Audiomack music for free?</h3>
+          <p style="color:#666;">Yes — FluxSave is 100% free with no limits on downloads.</p>
+        </div>
+        <div class="am-faq-item">
+          <h3 style="color:#333;margin-bottom:8px;">What genres can I download?</h3>
+          <p style="color:#666;">Afrobeats, Hip-Hop, R&amp;B, Gospel, Amapiano — any genre on Audiomack.</p>
+        </div>
+        <div class="am-faq-item">
+          <h3 style="color:#333;margin-bottom:8px;">Does it work in Nigeria?</h3>
+          <p style="color:#666;">Absolutely. FluxSave works on any device with an internet connection, anywhere.</p>
+        </div>
+        <div class="am-faq-item">
+          <h3 style="color:#333;margin-bottom:8px;">Why can't I download a track?</h3>
+          <p style="color:#666;">Some tracks are premium-only or region-restricted on Audiomack. Try a different publicly available track.</p>
+        </div>
+      </div>
+
     </div>
-<script src="https://3nbf4.com/act/files/tag.min.js?z=10123143" data-cfasync="false" async></script>
+
+    <footer class="modern-footer">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h4>FluxSave</h4>
+          <p>Free media downloader by Achek Digital Solutions</p>
+        </div>
+        <div class="footer-section">
+          <h4>Achek Digital Solutions</h4>
+          <div class="footer-links">
+            <a href="https://achek.com.ng" target="_blank" rel="noopener"><i class="fas fa-globe"></i> achek.com.ng</a>
+            <a href="https://wa.me/2348104040841" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> +234 810 404 0841</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 FluxSave by Achek Digital Solutions. All rights reserved.</p>
+      </div>
+    </footer>
+  </div>
+
+  <div id="amToast" class="toast hidden"></div>
+
+  <script>
+    function showAmToast(msg, ms = 3000) {
+      const el = document.getElementById("amToast");
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.remove("hidden");
+      clearTimeout(showAmToast._t);
+      showAmToast._t = setTimeout(() => el.classList.add("hidden"), ms);
+    }
+    function escHtml(s) {
+      return (s ?? "").toString().replace(/[&<>"']/g, c =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c] || c)
+      );
+    }
+
+    const amEls = {
+      input: document.getElementById("amLinkInput"),
+      pasteBtn: document.getElementById("amPasteBtn"),
+      fetchBtn: document.getElementById("amFetchBtn"),
+      detectText: document.getElementById("amDetectText"),
+      errorText: document.getElementById("amErrorText"),
+      loader: document.getElementById("amLoader"),
+      musicCard: document.getElementById("amMusicCard"),
+      musicMeta: document.getElementById("amMusicMeta"),
+      downloadBtn: document.getElementById("amDownloadBtn"),
+      musicStatus: document.getElementById("amMusicStatus"),
+    };
+
+    function showAmError(msg) {
+      if (!amEls.errorText) return;
+      if (msg) {
+        amEls.errorText.textContent = msg;
+        amEls.errorText.classList.remove("hidden");
+      } else {
+        amEls.errorText.classList.add("hidden");
+      }
+    }
+
+    amEls.pasteBtn?.addEventListener("click", async () => {
+      try {
+        const text = await navigator.clipboard.readText();
+        if (!text) { showAmToast("Your clipboard is empty — copy a link first!"); return; }
+        amEls.input.value = text.trim();
+        amEls.detectText.textContent = "Link pasted! Tap Fetch Track to continue.";
+        showAmToast("Link pasted! Tap Fetch Track to continue.");
+      } catch {
+        showAmToast("Browser blocked clipboard access. Please long-press and paste manually.");
+      }
+    });
+
+    amEls.input?.addEventListener("keypress", e => { if (e.key === "Enter") fetchAmTrack(); });
+    amEls.fetchBtn?.addEventListener("click", fetchAmTrack);
+
+    async function fetchAmTrack() {
+      const url = (amEls.input?.value || "").trim();
+      if (!url) { showAmError("Please paste an Audiomack link first."); return; }
+      if (!url.includes("audiomack.com")) { showAmError("That doesn't look like an Audiomack link. Please check and try again."); return; }
+
+      showAmError("");
+      amEls.loader?.classList.remove("hidden");
+      amEls.musicCard?.classList.add("hidden");
+      if (amEls.fetchBtn) amEls.fetchBtn.disabled = true;
+
+      try {
+        const r = await fetch("/fetch_info", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data?.success) throw new Error(data?.error || "Could not fetch track info. Please check the link.");
+
+        const title = data.title || "Unknown Track";
+        const uploader = data.uploader || "";
+        const rawDur = data.duration;
+        const duration = (rawDur && rawDur !== "Unknown") ? String(rawDur) : "";
+        const thumb = data.thumbnail || "";
+
+        if (amEls.musicMeta) {
+          amEls.musicMeta.innerHTML = `
+            ${thumb ? `<img src="${escHtml(thumb)}" alt="Album art" />` : ""}
+            <div>
+              <div class="am-meta-title">${escHtml(title)}</div>
+              ${uploader ? `<div class="am-meta-sub">Artist: ${escHtml(uploader)}</div>` : ""}
+              ${duration ? `<div class="am-meta-sub">Duration: ${escHtml(duration)}</div>` : ""}
+            </div>
+          `;
+        }
+
+        if (amEls.downloadBtn) amEls.downloadBtn._amUrl = url;
+        amEls.musicCard?.classList.remove("hidden");
+        amEls.musicCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+        showAmToast("Track found! Tap Download MP3 to save it to your device.", 4000);
+      } catch (e) {
+        showAmError(e.message || "Something went wrong. Please try again.");
+      } finally {
+        amEls.loader?.classList.add("hidden");
+        if (amEls.fetchBtn) amEls.fetchBtn.disabled = false;
+      }
+    }
+
+    amEls.downloadBtn?.addEventListener("click", async () => {
+      const url = amEls.downloadBtn._amUrl;
+      if (!url) { showAmToast("No track loaded. Paste a link and tap Fetch first."); return; }
+
+      amEls.downloadBtn.disabled = true;
+      amEls.downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting your track…';
+      if (amEls.musicStatus) amEls.musicStatus.textContent = "Getting download link, please wait…";
+
+      try {
+        const r = await fetch("/get_direct_url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url, type: "audio" }),
+        });
+        const data = await r.json().catch(() => ({}));
+        if (!r.ok || !data?.success || !data?.url) {
+          throw new Error(data?.error || "Could not get the download link. Please try again.");
+        }
+
+        const filename = data.filename || "audio.mp3";
+        if (amEls.musicStatus) amEls.musicStatus.textContent = "Starting your download…";
+        showAmToast("Your download has started! Check your downloads folder.", 4000);
+
+        const proxyUrl = `/download-proxy?url=${encodeURIComponent(data.url)}&filename=${encodeURIComponent(filename)}`;
+        const a = document.createElement("a");
+        a.href = proxyUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+
+        if (amEls.musicStatus) amEls.musicStatus.textContent = "Download started! Check your downloads folder.";
+      } catch (e) {
+        showAmToast(e.message || "Download failed. Please try again.", 4000);
+        if (amEls.musicStatus) amEls.musicStatus.textContent = "Download failed. Please try again.";
+      } finally {
+        setTimeout(() => {
+          amEls.downloadBtn.disabled = false;
+          amEls.downloadBtn.innerHTML = '<i class="fas fa-download"></i> Download MP3';
+          if (amEls.musicStatus) amEls.musicStatus.textContent = "";
+        }, 6000);
+      }
+    });
+  </script>
+  <script src="https://3nbf4.com/act/files/tag.min.js?z=10123143" data-cfasync="false" async></script>
 </body>
 </html>

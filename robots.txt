@@ -1,21 +1,11 @@
 # robots.txt for fluxsave.achek.com.ng
-# Optimized for maximum SEO visibility
 
 User-agent: *
 Allow: /
 Allow: /static/
-Allow: /static/css/
-Allow: /static/js/
-Allow: /static/favicon.png
 
-# Sitemap location
-Sitemap: https://fluxsave.achek.com.ng/static/sitemap.xml
-Sitemap: https://www.fluxsave.achek.com.ng/static/sitemap.xml
+Sitemap: https://fluxsave.achek.com.ng/sitemap.xml
 
-# Crawl-delay for respectful crawling
-Crawl-delay: 1
-
-# Allow all major search engines
 User-agent: Googlebot
 Allow: /
 
@@ -26,7 +16,4 @@ User-agent: Slurp
 Allow: /
 
 User-agent: DuckDuckBot
-Allow: /
-
-User-agent: Baiduspider
 Allow: /

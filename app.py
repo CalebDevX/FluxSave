@@ -225,6 +225,10 @@ def service_worker():
 def robots():
     return send_from_directory('.', 'robots.txt', mimetype='text/plain')
 
+@app.route('/sitemap.xml')
+def sitemap():
+    return send_from_directory('.', 'sitemap.xml', mimetype='application/xml')
+
 @app.route('/serve/<path:filename>')
 def serve_download(filename):
     """Serve a file from the downloads folder forcing browser download (not inline playback)."""
@@ -452,6 +456,44 @@ def get_direct_url():
 @app.route('/ads.txt')
 def ads_txt():
     return send_from_directory('.', 'ads.txt', mimetype='text/plain')
+
+@app.route('/download-proxy')
+def download_proxy():
+    """Proxy a remote audio/video URL and stream it to the browser as a download attachment."""
+    import urllib.parse
+    url = request.args.get('url', '').strip()
+    filename = request.args.get('filename', 'download.mp3').strip()
+
+    if not url or not (url.startswith('http://') or url.startswith('https://')):
+        return jsonify({'error': 'A valid URL is required'}), 400
+
+    try:
+        proxy_headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        }
+        r = requests.get(url, stream=True, timeout=60, headers=proxy_headers)
+        r.raise_for_status()
+        content_type = r.headers.get('Content-Type', 'audio/mpeg')
+        encoded_name = urllib.parse.quote(filename)
+
+        def generate():
+            for chunk in r.iter_content(chunk_size=65536):
+                if chunk:
+                    yield chunk
+
+        return Response(
+            stream_with_context(generate()),
+            headers={
+                'Content-Disposition': (
+                    f'attachment; filename="{filename}"; '
+                    f"filename*=UTF-8''{encoded_name}"
+                ),
+                'Content-Type': content_type,
+                'X-Accel-Buffering': 'no',
+            }
+        )
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/stream-spotify/<path:filename>')
 @app.route('/stream-spotify')

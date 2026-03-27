@@ -1,4 +1,4 @@
-// Spotify search and download functionality
+// Spotify downloader page – search + direct link logic
 
 const spotifyElements = {
   searchInput: document.getElementById("searchInput"),
@@ -13,223 +13,243 @@ const spotifyElements = {
   directDetectText: document.getElementById("directDetectText"),
   directErrorText: document.getElementById("directErrorText"),
   directLoader: document.getElementById("directLoader"),
-  directResultCard: document.getElementById("directResultCard"),
-  directMediaMeta: document.getElementById("directMediaMeta"),
-  directDownloadButtons: document.getElementById("directDownloadButtons"),
+  directMusicCard: document.getElementById("directMusicCard"),
+  directMusicMeta: document.getElementById("directMusicMeta"),
+  directDownloadBtn: document.getElementById("directDownloadBtn"),
+  directMusicStatus: document.getElementById("directMusicStatus"),
 };
 
-let lastInfo = null;
-let activeDownload = { downloadId: null, pollTimer: null };
-
-function showToast(message, ms = 2200) {
-  // Reuse the main.js toast if available
-  if (window.showToast) {
-    window.showToast(message, ms);
-  }
+function showPageToast(message, ms = 3000) {
+  const el = document.getElementById("pageToast");
+  if (!el) return;
+  el.textContent = message;
+  el.classList.remove("hidden");
+  clearTimeout(showPageToast._t);
+  showPageToast._t = setTimeout(() => el.classList.add("hidden"), ms);
 }
 
-function setError(element, message = "") {
-  if (!element) return;
-  element.textContent = message || "";
-}
-
-function setDetect(element, message = "") {
-  if (!element) return;
-  element.textContent = message || "";
-}
-
-function setLoading(element, isLoading) {
-  if (!element) return;
-  element.classList.toggle("hidden", !isLoading);
-}
-
-function showElement(element, show) {
-  if (!element) return;
-  element.style.display = show ? "block" : "none";
+function escHtml(s) {
+  return (s ?? "").toString().replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#039;" }[c] || c)
+  );
 }
 
 function formatDuration(seconds) {
-  if (!seconds) return "Unknown";
-  const mins = Math.floor(seconds / 60);
-  const secs = seconds % 60;
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  if (!seconds) return "";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
+// ─── Direct download helper ───────────────────────────────────────────────────
+async function downloadSpotifyTrack(spotifyUrl, btn, statusEl) {
+  if (!spotifyUrl) { showPageToast("No track loaded. Paste a Spotify link first."); return; }
+
+  btn.disabled = true;
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting your track…';
+  if (statusEl) statusEl.textContent = "Getting download link, please wait…";
+
+  try {
+    const r = await fetch("/get_direct_url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: spotifyUrl, type: "audio" }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success || !data?.url) {
+      throw new Error(data?.error || "Could not get the download link. Please try again.");
+    }
+
+    const filename = data.filename || "audio.mp3";
+    if (statusEl) statusEl.textContent = "Starting your download…";
+    showPageToast("Your download has started! Check your downloads folder.", 4000);
+
+    const proxyUrl = `/download-proxy?url=${encodeURIComponent(data.url)}&filename=${encodeURIComponent(filename)}`;
+    const a = document.createElement("a");
+    a.href = proxyUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    if (statusEl) statusEl.textContent = "Download started! Check your downloads folder.";
+  } catch (e) {
+    showPageToast(e.message || "Download failed. Please try again.", 4000);
+    if (statusEl) statusEl.textContent = "Download failed. Please try again.";
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.innerHTML = originalText;
+      if (statusEl) statusEl.textContent = "";
+    }, 6000);
+  }
+}
+
+// ─── Search results ───────────────────────────────────────────────────────────
 function createTrackItem(track) {
   const item = document.createElement("div");
   item.className = "track-item";
 
-  const thumbnail = track.thumbnail || "https://via.placeholder.com/80x80/1DB954/ffffff?text=♪";
+  const thumbnail = track.thumbnail || "";
   const artists = Array.isArray(track.artists) ? track.artists.join(", ") : track.artists || "Unknown Artist";
   const duration = formatDuration(track.duration);
 
   item.innerHTML = `
-    <img src="${thumbnail}" alt="Album Art" class="track-thumbnail" onerror="this.src='https://via.placeholder.com/80x80/1DB954/ffffff?text=♪'">
+    ${thumbnail ? `<img src="${escHtml(thumbnail)}" alt="Album Art" class="track-thumbnail" onerror="this.style.display='none'">` : ""}
     <div class="track-info">
-      <div class="track-title">${track.title || "Unknown Title"}</div>
-      <div class="track-artist">${artists}</div>
-      <div class="track-album">${track.album || "Unknown Album"}</div>
+      <div class="track-title">${escHtml(track.title || "Unknown Title")}</div>
+      <div class="track-artist">${escHtml(artists)}</div>
+      <div class="track-album">${escHtml(track.album || "")}</div>
     </div>
-    <div class="track-duration">${duration}</div>
-    <button class="download-btn" data-url="${track.spotify_url}">
+    ${duration ? `<div class="track-duration">${escHtml(duration)}</div>` : ""}
+    <button class="download-btn" type="button">
       <i class="fas fa-download"></i> Download
     </button>
   `;
 
-  // Add download event listener
   const downloadBtn = item.querySelector(".download-btn");
   downloadBtn.addEventListener("click", () => {
-    const url = downloadBtn.dataset.url;
-    if (url) {
-      downloadTrack(url, downloadBtn);
-    }
+    const url = track.spotify_url || track.spotifyUrl || "";
+    if (!url) { showPageToast("Track URL is missing. Please try another song."); return; }
+    downloadSpotifyTrack(url, downloadBtn, null);
   });
 
   return item;
 }
 
-async function searchSpotify(query) {
+async function performSearch() {
+  const query = (spotifyElements.searchInput?.value || "").trim();
+  if (!query) {
+    if (spotifyElements.searchError) {
+      spotifyElements.searchError.textContent = "Type a song name or artist to search.";
+      spotifyElements.searchError.style.display = "block";
+    }
+    return;
+  }
+
+  if (spotifyElements.searchError) spotifyElements.searchError.style.display = "none";
+  if (spotifyElements.searchLoader) spotifyElements.searchLoader.classList.remove("hidden");
+  if (spotifyElements.resultsSection) spotifyElements.resultsSection.style.display = "block";
+  if (spotifyElements.resultsContainer) spotifyElements.resultsContainer.innerHTML = "";
+  if (spotifyElements.searchBtn) spotifyElements.searchBtn.disabled = true;
+
   try {
-    const response = await fetch("/spotify-search", {
+    const r = await fetch("/spotify-search", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
     });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data.success) throw new Error(data.error || "Search failed. Please try again.");
+    const results = data.results || [];
 
-    const data = await response.json();
-    if (!response.ok || !data.success) {
-      throw new Error(data.error || "Search failed");
-    }
-
-    return data.results || [];
-  } catch (error) {
-    console.error("Search error:", error);
-    throw error;
-  }
-}
-
-async function performSearch() {
-  const query = spotifyElements.searchInput?.value?.trim();
-  if (!query) {
-    showElement(spotifyElements.searchError, true);
-    setError(spotifyElements.searchError, "Please enter a search query");
-    return;
-  }
-
-  showElement(spotifyElements.searchError, false);
-  setLoading(spotifyElements.searchLoader, true);
-  showElement(spotifyElements.resultsSection, true);
-  spotifyElements.resultsContainer.innerHTML = "";
-
-  try {
-    const results = await searchSpotify(query);
-
-    if (results.length === 0) {
-      spotifyElements.resultsContainer.innerHTML = '<div class="no-results">No tracks found. Try a different search query.</div>';
+    if (!results.length) {
+      if (spotifyElements.resultsContainer) {
+        spotifyElements.resultsContainer.innerHTML = '<div class="no-results">Nothing came up — try a different song or artist name.</div>';
+      }
     } else {
       results.forEach(track => {
-        const trackItem = createTrackItem(track);
-        spotifyElements.resultsContainer.appendChild(trackItem);
+        spotifyElements.resultsContainer?.appendChild(createTrackItem(track));
       });
     }
   } catch (error) {
-    showElement(spotifyElements.searchError, true);
-    setError(spotifyElements.searchError, `Search failed: ${error.message}`);
-  } finally {
-    setLoading(spotifyElements.searchLoader, false);
-  }
-}
-
-async function downloadTrack(spotifyUrl, button) {
-  button.disabled = true;
-  button.innerHTML = '<div class="loading-spinner"></div> Processing...';
-
-  try {
-    // Use the main fetchInfo function to get download options
-    if (window.fetchInfo) {
-      await window.fetchInfo(spotifyUrl);
-      showToast("Download options ready!");
-    } else {
-      // Fallback: redirect to main page with the URL
-      window.location.href = `/?url=${encodeURIComponent(spotifyUrl)}`;
+    if (spotifyElements.searchError) {
+      spotifyElements.searchError.textContent = error.message || "Search failed. Please try again.";
+      spotifyElements.searchError.style.display = "block";
     }
-  } catch (error) {
-    showToast(`Download failed: ${error.message}`, 4000);
   } finally {
-    button.disabled = false;
-    button.innerHTML = '<i class="fas fa-download"></i> Download';
+    if (spotifyElements.searchLoader) spotifyElements.searchLoader.classList.add("hidden");
+    if (spotifyElements.searchBtn) spotifyElements.searchBtn.disabled = false;
   }
 }
 
+// ─── Direct link: fetch → show music card ─────────────────────────────────────
 async function fetchDirectInfo() {
-  const url = spotifyElements.directLinkInput?.value?.trim();
+  const url = (spotifyElements.directLinkInput?.value || "").trim();
   if (!url) {
-    setError(spotifyElements.directErrorText, "Please paste a Spotify link");
+    if (spotifyElements.directErrorText) spotifyElements.directErrorText.textContent = "Please paste a Spotify link first.";
     return;
   }
 
-  setError(spotifyElements.directErrorText, "");
-  setLoading(spotifyElements.directLoader, true);
+  if (spotifyElements.directErrorText) spotifyElements.directErrorText.textContent = "";
+  if (spotifyElements.directLoader) spotifyElements.directLoader.classList.remove("hidden");
+  if (spotifyElements.directMusicCard) spotifyElements.directMusicCard.classList.add("hidden");
+  if (spotifyElements.fetchDirectBtn) spotifyElements.fetchDirectBtn.disabled = true;
 
   try {
-    // Use the main fetchInfo function
-    if (window.fetchInfo) {
-      const result = await window.fetchInfo(url);
-      if (result) {
-        showElement(spotifyElements.directResultCard, true);
-        // Scroll to results
-        spotifyElements.directResultCard.scrollIntoView({ behavior: 'smooth' });
-      }
-    } else {
-      // Fallback: redirect to main page
-      window.location.href = `/?url=${encodeURIComponent(url)}`;
+    const r = await fetch("/fetch_info", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success) throw new Error(data?.error || "Could not fetch track info. Please check the link.");
+
+    // Populate music card
+    const title = data.title || "Unknown Track";
+    const uploader = data.uploader || "";
+    const rawDur = data.duration;
+    const duration = (rawDur && rawDur !== "Unknown") ? String(rawDur) : "";
+    const thumb = data.thumbnail || "";
+
+    if (spotifyElements.directMusicMeta) {
+      spotifyElements.directMusicMeta.innerHTML = `
+        <div class="media-meta-block" style="display:flex;align-items:center;gap:16px;">
+          ${thumb ? `<img class="meta-thumb" src="${escHtml(thumb)}" alt="Album art" style="width:80px;height:80px;border-radius:8px;object-fit:cover;" />` : ""}
+          <div>
+            <div class="meta-title" style="font-weight:700;font-size:1.1rem;">${escHtml(title)}</div>
+            ${uploader ? `<div class="meta-sub" style="color:#666;">Artist: ${escHtml(uploader)}</div>` : ""}
+            ${duration ? `<div class="meta-sub" style="color:#888;">Duration: ${escHtml(duration)}</div>` : ""}
+          </div>
+        </div>
+      `;
     }
-  } catch (error) {
-    setError(spotifyElements.directErrorText, error.message);
+
+    if (spotifyElements.directDownloadBtn) {
+      spotifyElements.directDownloadBtn._spotifyUrl = url;
+    }
+
+    if (spotifyElements.directMusicCard) {
+      spotifyElements.directMusicCard.classList.remove("hidden");
+      spotifyElements.directMusicCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    showPageToast("Track found! Tap Download MP3 to save it to your device.", 4000);
+  } catch (e) {
+    if (spotifyElements.directErrorText) spotifyElements.directErrorText.textContent = e.message || "Something went wrong. Please try again.";
   } finally {
-    setLoading(spotifyElements.directLoader, false);
+    if (spotifyElements.directLoader) spotifyElements.directLoader.classList.add("hidden");
+    if (spotifyElements.fetchDirectBtn) spotifyElements.fetchDirectBtn.disabled = false;
   }
 }
 
-// Event listeners
+// ─── Wire events ──────────────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-  // Search functionality
-  if (spotifyElements.searchBtn) {
-    spotifyElements.searchBtn.addEventListener("click", performSearch);
-  }
+  spotifyElements.searchBtn?.addEventListener("click", performSearch);
+  spotifyElements.searchInput?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") performSearch();
+  });
 
-  if (spotifyElements.searchInput) {
-    spotifyElements.searchInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        performSearch();
-      }
-    });
-  }
+  spotifyElements.pasteDirectBtn?.addEventListener("click", async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!text) { showPageToast("Your clipboard is empty — copy a Spotify link first!"); return; }
+      if (spotifyElements.directLinkInput) spotifyElements.directLinkInput.value = text.trim();
+      if (spotifyElements.directDetectText) spotifyElements.directDetectText.textContent = "Link pasted! Tap Fetch Track to continue.";
+      showPageToast("Link pasted! Tap Fetch Track to continue.");
+    } catch {
+      if (spotifyElements.directDetectText) spotifyElements.directDetectText.textContent = "Please long-press and paste the link manually.";
+    }
+  });
 
-  // Direct link functionality
-  if (spotifyElements.pasteDirectBtn) {
-    spotifyElements.pasteDirectBtn.addEventListener("click", async () => {
-      try {
-        const text = await navigator.clipboard.readText();
-        if (spotifyElements.directLinkInput) {
-          spotifyElements.directLinkInput.value = text;
-          setDetect(spotifyElements.directDetectText, "Link pasted!");
-        }
-      } catch (error) {
-        setDetect(spotifyElements.directDetectText, "Paste manually or allow clipboard access");
-      }
-    });
-  }
+  spotifyElements.fetchDirectBtn?.addEventListener("click", fetchDirectInfo);
+  spotifyElements.directLinkInput?.addEventListener("keypress", (e) => {
+    if (e.key === "Enter") fetchDirectInfo();
+  });
 
-  if (spotifyElements.fetchDirectBtn) {
-    spotifyElements.fetchDirectBtn.addEventListener("click", fetchDirectInfo);
-  }
-
-  if (spotifyElements.directLinkInput) {
-    spotifyElements.directLinkInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") {
-        fetchDirectInfo();
-      }
-    });
-  }
+  spotifyElements.directDownloadBtn?.addEventListener("click", () => {
+    const url = spotifyElements.directDownloadBtn._spotifyUrl;
+    downloadSpotifyTrack(url, spotifyElements.directDownloadBtn, spotifyElements.directMusicStatus);
+  });
 });

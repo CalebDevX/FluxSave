@@ -1,405 +1,253 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Spotify Downloader - Search & Download Spotify Music | Free MP3</title>
-    <!-- AMP Auto Ads Script -->
-    <script src="https://pl28985677.profitablecpmratenetwork.com/21/22/7a/21227a1724ac92506f62defcbeb5d653.js"></script>
-<meta name="description" content="Search and download Spotify tracks, albums, and playlists. Get high-quality MP3 downloads from Spotify with our advanced downloader.">
-    <meta name="keywords" content="spotify downloader, spotify search, spotify to mp3, download spotify music, spotify playlist downloader, spotify album downloader, free spotify downloads">
-    <link rel="canonical" href="https://fluxsave.achek.com.ng/spotify-downloader">
-    <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
-    <style>
-        .spotify-search-container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-        .search-section {
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        .search-input-group {
-            display: flex;
-            gap: 15px;
-            max-width: 600px;
-            margin: 0 auto 20px;
-        }
-        .search-input {
-            flex: 1;
-            padding: 15px 20px;
-            border: 2px solid #e1e5e9;
-            border-radius: 10px;
-            font-size: 16px;
-            transition: border-color 0.3s;
-        }
-        .search-input:focus {
-            outline: none;
-            border-color: #1DB954;
-        }
-        .search-btn {
-            background: #1DB954;
-            color: white;
-            border: none;
-            padding: 15px 30px;
-            border-radius: 10px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s;
-        }
-        .search-btn:hover {
-            background: #1ed760;
-        }
-        .search-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .results-section {
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-        .track-item {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-            padding: 20px;
-            border: 1px solid #e1e5e9;
-            border-radius: 10px;
-            margin-bottom: 15px;
-            transition: border-color 0.3s, box-shadow 0.3s;
-        }
-        .track-item:hover {
-            border-color: #1DB954;
-            box-shadow: 0 2px 10px rgba(29, 185, 84, 0.1);
-        }
-        .track-thumbnail {
-            width: 80px;
-            height: 80px;
-            border-radius: 8px;
-            object-fit: cover;
-            flex-shrink: 0;
-        }
-        .track-info {
-            flex: 1;
-            min-width: 0;
-        }
-        .track-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 5px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .track-artist {
-            color: #666;
-            margin-bottom: 5px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .track-album {
-            color: #888;
-            font-size: 14px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
-        }
-        .track-duration {
-            color: #666;
-            font-size: 14px;
-            margin-left: 20px;
-        }
-        .download-btn {
-            background: #1DB954;
-            color: white;
-            border: none;
-            padding: 12px 24px;
-            border-radius: 8px;
-            font-size: 14px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background-color 0.3s;
-            flex-shrink: 0;
-        }
-        .download-btn:hover {
-            background: #1ed760;
-        }
-        .download-btn:disabled {
-            background: #ccc;
-            cursor: not-allowed;
-        }
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid #f3f3f3;
-            border-top: 3px solid #1DB954;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-right: 10px;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-        .no-results {
-            text-align: center;
-            color: #666;
-            padding: 40px;
-        }
-        .error-message {
-            background: #fee;
-            color: #c33;
-            padding: 15px;
-            border-radius: 8px;
-            margin-bottom: 20px;
-            border-left: 4px solid #c33;
-        }
-        .direct-link-section {
-            background: white;
-            padding: 40px;
-            border-radius: 15px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-        .direct-link-input {
-            width: 100%;
-            padding: 15px 20px;
-            border: 2px solid #e1e5e9;
-            border-radius: 10px;
-            font-size: 16px;
-            margin-bottom: 20px;
-        }
-        .direct-link-input:focus {
-            outline: none;
-            border-color: #1DB954;
-        }
-        .features-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 20px;
-            margin-top: 30px;
-        }
-        .feature-card {
-            text-align: center;
-            padding: 30px 20px;
-            background: #f8f9fa;
-            border-radius: 10px;
-        }
-        .feature-icon {
-            font-size: 48px;
-            color: #1DB954;
-            margin-bottom: 15px;
-        }
-        .feature-title {
-            font-size: 18px;
-            font-weight: 600;
-            color: #333;
-            margin-bottom: 10px;
-        }
-        .feature-desc {
-            color: #666;
-            line-height: 1.5;
-        }
-        @media (max-width: 768px) {
-            .search-input-group {
-                flex-direction: column;
-            }
-            .track-item {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 15px;
-            }
-            .track-duration {
-                margin-left: 0;
-                margin-top: 10px;
-            }
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spotify Downloader - Download Spotify Songs as MP3 Free | FluxSave</title>
+  <meta name="description" content="Download Spotify songs, albums and playlists as high-quality MP3 files for free. Paste a Spotify link or search any song — no signup required." />
+  <meta name="keywords" content="spotify downloader, spotify to mp3, download spotify songs free, spotify mp3 converter, download spotify playlist, spotify music downloader 2024" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://fluxsave.achek.com.ng/spotify-downloader" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://fluxsave.achek.com.ng/spotify-downloader" />
+  <meta property="og:title" content="Spotify Downloader - Free MP3 | FluxSave" />
+  <meta property="og:description" content="Download any Spotify song as MP3 in seconds. Paste a link or search by song name. Free, fast, no signup." />
+  <meta property="og:image" content="https://fluxsave.achek.com.ng/static/favicon.png" />
+
+  <!-- JSON-LD -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "FluxSave Spotify Downloader",
+    "url": "https://fluxsave.achek.com.ng/spotify-downloader",
+    "description": "Download Spotify songs and playlists as MP3 for free. No signup required.",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "All",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+  }
+  </script>
+
+  <script src="https://pl28985677.profitablecpmratenetwork.com/21/22/7a/21227a1724ac92506f62defcbeb5d653.js"></script>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='favicon.png') }}">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    .spotify-search-container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+    .search-section { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,.1); margin-bottom: 30px; text-align: center; }
+    .search-input-group { display: flex; gap: 15px; max-width: 600px; margin: 0 auto 20px; }
+    .search-input { flex: 1; padding: 15px 20px; border: 2px solid #e1e5e9; border-radius: 10px; font-size: 16px; transition: border-color .3s; }
+    .search-input:focus { outline: none; border-color: #1DB954; }
+    .search-btn { background: #1DB954; color: white; border: none; padding: 15px 30px; border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background-color .3s; }
+    .search-btn:hover { background: #1ed760; }
+    .search-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .results-section { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,.1); margin-bottom: 30px; }
+    .track-item { display: flex; align-items: center; gap: 20px; padding: 20px; border: 1px solid #e1e5e9; border-radius: 10px; margin-bottom: 15px; transition: border-color .3s, box-shadow .3s; }
+    .track-item:hover { border-color: #1DB954; box-shadow: 0 2px 10px rgba(29,185,84,.1); }
+    .track-thumbnail { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; flex-shrink: 0; }
+    .track-info { flex: 1; min-width: 0; }
+    .track-title { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .track-artist { color: #666; margin-bottom: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .track-album { color: #888; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .track-duration { color: #666; font-size: 14px; margin-left: 20px; white-space: nowrap; }
+    .download-btn { background: #1DB954; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 14px; font-weight: 600; cursor: pointer; transition: background-color .3s; flex-shrink: 0; }
+    .download-btn:hover { background: #1ed760; }
+    .download-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .no-results { text-align: center; color: #666; padding: 40px; }
+    .error-message { background: #fee; color: #c33; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #c33; }
+    .direct-link-section { background: white; padding: 40px; border-radius: 15px; box-shadow: 0 4px 20px rgba(0,0,0,.1); margin-bottom: 30px; }
+    .music-card-section { background: #f0faf4; padding: 30px; border-radius: 15px; box-shadow: 0 4px 20px rgba(29,185,84,.15); margin-bottom: 30px; border: 2px solid #1DB954; }
+    .music-card-section .meta-thumb { width: 80px; height: 80px; border-radius: 8px; object-fit: cover; }
+    .music-card-section .cta-btn { background: #1DB954; color: white; border: none; padding: 14px 32px; border-radius: 10px; font-size: 16px; font-weight: 700; cursor: pointer; transition: background-color .3s; margin-top: 20px; display: block; width: 100%; max-width: 320px; margin-left: auto; margin-right: auto; }
+    .music-card-section .cta-btn:hover { background: #1ed760; }
+    .music-card-section .cta-btn:disabled { background: #ccc; cursor: not-allowed; }
+    .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 30px; }
+    .feature-card { text-align: center; padding: 30px 20px; background: #f8f9fa; border-radius: 10px; }
+    .feature-icon { font-size: 48px; color: #1DB954; margin-bottom: 15px; }
+    .feature-title { font-size: 18px; font-weight: 600; color: #333; margin-bottom: 10px; }
+    .feature-desc { color: #666; line-height: 1.5; }
+    @media (max-width: 768px) {
+      .search-input-group { flex-direction: column; }
+      .track-item { flex-direction: column; align-items: flex-start; gap: 15px; }
+      .track-duration { margin-left: 0; }
+    }
+    .toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 12px 24px; border-radius: 24px; font-size: 14px; z-index: 9999; box-shadow: 0 4px 20px rgba(0,0,0,.3); }
+    .hidden { display: none !important; }
+  </style>
 </head>
 <body>
-    <!-- AMP Auto Ads Element -->
-    <amp-auto-ads type="adsense"
-            data-ad-client="ca-pub-5807971758805138">
-    </amp-auto-ads>
-    <div class="modern-container">
-        <header class="modern-header">
-            <div class="header-content">
-                <div class="logo-section">
-                    <a href="/" style="display: flex; align-items: center; gap: 15px; text-decoration: none;">
-                        <div class="logo-icon"><i class="fas fa-download"></i></div>
-                        <div class="logo-text">
-                            <h1>Media Downloader</h1>
-                            <p class="logo-subtitle">By Achek Digital Solutions</p>
-                        </div>
-                    </a>
-                </div>
-                <div class="header-actions">
-                    <a href="/" class="header-btn"><i class="fas fa-home"></i> Home</a>
-                </div>
+  <div class="modern-container">
+    <header class="modern-header">
+      <div class="header-content">
+        <div class="logo-section">
+          <a href="/" style="display:flex;align-items:center;gap:15px;text-decoration:none;">
+            <div class="logo-icon"><i class="fas fa-download"></i></div>
+            <div class="logo-text">
+              <h1>FluxSave</h1>
+              <p class="logo-subtitle">By Achek Digital Solutions</p>
             </div>
-        </header>
+          </a>
+        </div>
+        <div class="header-actions">
+          <a href="/" class="header-btn"><i class="fas fa-home"></i> Home</a>
+        </div>
+      </div>
+    </header>
 
-        <section class="hero-section">
-            <div class="hero-content">
-                <h2 class="hero-title">Spotify Search & Download</h2>
-                <p class="hero-description">Search for any song, artist, or album on Spotify and download high-quality MP3 files instantly.</p>
-            </div>
-        </section>
+    <section class="hero-section">
+      <div class="hero-content">
+        <h2 class="hero-title">Spotify Song Downloader</h2>
+        <p class="hero-description">Paste a Spotify link or search any song — download it as MP3 straight to your device, instantly and free.</p>
+      </div>
+    </section>
 
-        <div class="spotify-search-container">
-            <!-- Direct Link Section -->
-            <div class="direct-link-section">
-                <h2 style="color: #1DB954; margin-bottom: 20px; text-align: center;"><i class="fab fa-spotify"></i> Direct Spotify Link</h2>
-                <p style="text-align: center; color: #666; margin-bottom: 30px;">Already have a Spotify link? Paste it here for instant download.</p>
+    <div class="spotify-search-container">
 
-                <div class="input-wrapper mobile-stack" style="max-width: 600px; margin: 0 auto;">
-                    <input
-                        class="input direct-link-input"
-                        id="directLinkInput"
-                        type="url"
-                        placeholder="Paste Spotify track, album, or playlist link..."
-                        autocomplete="off"
-                    />
-                    <button class="icon-btn" id="pasteDirectBtn" type="button">Paste</button>
-                </div>
+      <!-- Direct Link Section -->
+      <div class="direct-link-section">
+        <h2 style="color:#1DB954;margin-bottom:20px;text-align:center;"><i class="fab fa-spotify"></i> Paste a Spotify Link</h2>
+        <p style="text-align:center;color:#666;margin-bottom:30px;">Got a Spotify link? Paste it below and hit Fetch Track — we'll get the song details, then you can download it with one tap.</p>
 
-                <div id="directDetectText" class="detect-text" style="text-align: center;"></div>
-                <div id="directErrorText" class="error-text" style="text-align: center;"></div>
-
-                <button class="cta" id="fetchDirectBtn" type="button" style="max-width: 300px; margin: 20px auto; display: block;">Fetch from Link</button>
-
-                <div id="directLoader" class="loader hidden" style="justify-content: center;">
-                    <div class="spinner"></div>
-                    <span>Processing...</span>
-                </div>
-            </div>
-
-            <!-- Search Section -->
-            <div class="search-section">
-                <h2 style="color: #1DB954; margin-bottom: 20px;"><i class="fas fa-search"></i> Search Spotify</h2>
-                <p style="color: #666; margin-bottom: 30px;">Search for songs, artists, or albums to download.</p>
-
-                <div class="search-input-group">
-                    <input
-                        class="search-input"
-                        id="searchInput"
-                        type="text"
-                        placeholder="Search for songs, artists, albums..."
-                        autocomplete="off"
-                    />
-                    <button class="search-btn" id="searchBtn" type="button">
-                        <i class="fas fa-search"></i> Search
-                    </button>
-                </div>
-
-                <div id="searchError" class="error-message" style="display: none;"></div>
-            </div>
-
-            <!-- Results Section -->
-            <div id="resultsSection" class="results-section" style="display: none;">
-                <h2 style="color: #1DB954; margin-bottom: 20px;"><i class="fas fa-list"></i> Search Results</h2>
-
-                <div id="searchLoader" class="loader hidden" style="justify-content: center; margin-bottom: 20px;">
-                    <div class="spinner"></div>
-                    <span>Searching...</span>
-                </div>
-
-                <div id="resultsContainer"></div>
-            </div>
-
-            <!-- Direct Link Results -->
-            <div id="directResultCard" class="results-section hidden">
-                <div class="cardTitle">Download Options</div>
-                <p class="tiny">
-                    Tap any option below. Your monetized page opens first, then the download starts.
-                </p>
-
-                <div id="directMediaMeta" class="tiny" style="text-align:left;"></div>
-
-                <div id="directDownloadButtons" class="btn-grid mt-3"></div>
-            </div>
-
-            <!-- Features -->
-            <div class="results-section">
-                <h2 style="color: #1DB954; margin-bottom: 20px;"><i class="fas fa-star"></i> Why Choose Our Spotify Downloader?</h2>
-
-                <div class="features-grid">
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="fas fa-search"></i></div>
-                        <h3 class="feature-title">Advanced Search</h3>
-                        <p class="feature-desc">Search millions of Spotify tracks, albums, and playlists with our powerful search engine.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="fas fa-music"></i></div>
-                        <h3 class="feature-title">High Quality MP3</h3>
-                        <p class="feature-desc">Download Spotify songs in 320kbps MP3 quality for the best audio experience.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="fas fa-bolt"></i></div>
-                        <h3 class="feature-title">Fast Downloads</h3>
-                        <p class="feature-desc">Quick conversion and download process. Get your music in seconds.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="fas fa-unlock"></i></div>
-                        <h3 class="feature-title">No Premium Required</h3>
-                        <p class="feature-desc">Download any Spotify track without needing a premium subscription.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="fas fa-list"></i></div>
-                        <h3 class="feature-title">Playlist Support</h3>
-                        <p class="feature-desc">Download entire Spotify playlists and albums with just one click.</p>
-                    </div>
-
-                    <div class="feature-card">
-                        <div class="feature-icon"><i class="fas fa-mobile-alt"></i></div>
-                        <h3 class="feature-title">Mobile Friendly</h3>
-                        <p class="feature-desc">Works perfectly on all devices - desktop, tablet, and mobile phones.</p>
-                    </div>
-                </div>
-            </div>
+        <div class="input-wrapper mobile-stack" style="max-width:600px;margin:0 auto;">
+          <input
+            class="input direct-link-input"
+            id="directLinkInput"
+            type="url"
+            placeholder="Paste your Spotify track or playlist link here…"
+            autocomplete="off"
+            style="padding:15px 20px;border:2px solid #e1e5e9;border-radius:10px;font-size:16px;width:100%;"
+          />
+          <button class="icon-btn" id="pasteDirectBtn" type="button">Paste</button>
         </div>
 
-        <footer class="modern-footer">
-            <div class="footer-content">
-                <div class="footer-section">
-                    <h4>Media Downloader</h4>
-                    <p>Professional video and music downloader by Achek Digital Solutions</p>
-                </div>
-                <div class="footer-section">
-                    <h4>Achek Digital Solutions</h4>
-                    <div class="footer-links">
-                        <a href="https://achek.com.ng" target="_blank" rel="noopener"><i class="fas fa-globe"></i> achek.com.ng</a>
-                        <a href="https://wa.me/2348104040841" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> +234 810 4040841</a>
-                    </div>
-                </div>
-            </div>
-            <div class="footer-bottom">
-                <p>&copy; 2025 Achek Digital Solutions. All rights reserved.</p>
-            </div>
-        </footer>
+        <div id="directDetectText" class="detect-text" style="text-align:center;margin-top:8px;"></div>
+        <div id="directErrorText" class="error-text" style="text-align:center;"></div>
+
+        <button class="cta" id="fetchDirectBtn" type="button" style="max-width:300px;margin:20px auto;display:block;">
+          <i class="fas fa-search"></i> Fetch Track
+        </button>
+
+        <div id="directLoader" class="loader hidden" style="justify-content:center;">
+          <div class="spinner"></div>
+          <span>Looking up your track…</span>
+        </div>
+      </div>
+
+      <!-- Music card shown after fetch -->
+      <div id="directMusicCard" class="music-card-section hidden">
+        <h3 style="color:#1DB954;margin-bottom:16px;"><i class="fas fa-music"></i> Track Ready</h3>
+        <div id="directMusicMeta"></div>
+        <button class="cta-btn" id="directDownloadBtn" type="button">
+          <i class="fas fa-download"></i> Download MP3
+        </button>
+        <div id="directMusicStatus" style="text-align:center;color:#555;margin-top:10px;font-size:14px;"></div>
+      </div>
+
+      <!-- Search Section -->
+      <div class="search-section">
+        <h2 style="color:#1DB954;margin-bottom:20px;"><i class="fas fa-search"></i> Search Spotify</h2>
+        <p style="color:#666;margin-bottom:30px;">Don't have a link? Search for any song or artist and download it directly.</p>
+
+        <div class="search-input-group">
+          <input
+            class="search-input"
+            id="searchInput"
+            type="text"
+            placeholder="Search songs, artists, albums…"
+            autocomplete="off"
+          />
+          <button class="search-btn" id="searchBtn" type="button">
+            <i class="fas fa-search"></i> Search
+          </button>
+        </div>
+
+        <div id="searchError" class="error-message" style="display:none;"></div>
+      </div>
+
+      <!-- Search Results -->
+      <div id="resultsSection" class="results-section" style="display:none;">
+        <h2 style="color:#1DB954;margin-bottom:20px;"><i class="fas fa-list"></i> Search Results</h2>
+        <div id="searchLoader" class="loader hidden" style="justify-content:center;margin-bottom:20px;">
+          <div class="spinner"></div>
+          <span>Searching…</span>
+        </div>
+        <div id="resultsContainer"></div>
+      </div>
+
+      <!-- Features -->
+      <div class="results-section">
+        <h2 style="color:#1DB954;margin-bottom:20px;"><i class="fas fa-star"></i> Why Use FluxSave for Spotify?</h2>
+        <div class="features-grid">
+          <div class="feature-card">
+            <div class="feature-icon"><i class="fas fa-bolt"></i></div>
+            <h3 class="feature-title">Instant Downloads</h3>
+            <p class="feature-desc">Paste your link and your MP3 downloads straight to your device in seconds.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><i class="fas fa-music"></i></div>
+            <h3 class="feature-title">High Quality MP3</h3>
+            <p class="feature-desc">Get the best audio quality available — no degradation, no re-encoding tricks.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><i class="fas fa-unlock"></i></div>
+            <h3 class="feature-title">No Premium Needed</h3>
+            <p class="feature-desc">Download any Spotify track without a Spotify Premium subscription.</p>
+          </div>
+          <div class="feature-card">
+            <div class="feature-icon"><i class="fas fa-mobile-alt"></i></div>
+            <h3 class="feature-title">Works on Mobile</h3>
+            <p class="feature-desc">Downloads go straight to your phone or tablet's downloads folder.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- FAQ -->
+      <div class="results-section">
+        <h2 style="margin-bottom:20px;"><i class="fas fa-question-circle"></i> Frequently Asked Questions</h2>
+        <div style="display:grid;gap:20px;">
+          <div style="padding:20px;background:#f8f9fa;border-radius:10px;">
+            <h3 style="color:#333;margin-bottom:10px;">How do I download a Spotify song?</h3>
+            <p>Copy the Spotify track link, paste it in the box above, tap "Fetch Track", then tap "Download MP3". Your file will save directly to your device.</p>
+          </div>
+          <div style="padding:20px;background:#f8f9fa;border-radius:10px;">
+            <h3 style="color:#333;margin-bottom:10px;">Is FluxSave free?</h3>
+            <p>Yes — 100% free. No subscription, no signup, unlimited downloads.</p>
+          </div>
+          <div style="padding:20px;background:#f8f9fa;border-radius:10px;">
+            <h3 style="color:#333;margin-bottom:10px;">What format do downloads come in?</h3>
+            <p>All Spotify downloads are delivered as MP3 files for maximum compatibility with all devices and music players.</p>
+          </div>
+        </div>
+      </div>
+
     </div>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}?v=2"></script>
-    <script src="{{ url_for('static', filename='js/spotify.js') }}"></script>
-<script src="https://3nbf4.com/act/files/tag.min.js?data-cfasync="false" async></script>
+    <footer class="modern-footer">
+      <div class="footer-content">
+        <div class="footer-section">
+          <h4>FluxSave</h4>
+          <p>Free media downloader by Achek Digital Solutions</p>
+        </div>
+        <div class="footer-section">
+          <h4>Achek Digital Solutions</h4>
+          <div class="footer-links">
+            <a href="https://achek.com.ng" target="_blank" rel="noopener"><i class="fas fa-globe"></i> achek.com.ng</a>
+            <a href="https://wa.me/2348104040841" target="_blank" rel="noopener"><i class="fab fa-whatsapp"></i> +234 810 4040841</a>
+          </div>
+        </div>
+      </div>
+      <div class="footer-bottom">
+        <p>&copy; 2026 FluxSave by Achek Digital Solutions. All rights reserved.</p>
+      </div>
+    </footer>
+  </div>
+
+  <div id="pageToast" class="toast hidden"></div>
+
+  <script src="{{ url_for('static', filename='js/spotify.js') }}"></script>
+  <script src="https://3nbf4.com/act/files/tag.min.js?data-cfasync=false" async></script>
 </body>
 </html>

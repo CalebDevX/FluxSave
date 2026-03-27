@@ -15,6 +15,11 @@ const els = {
   videoGroup: document.getElementById("videoGroup"),
   audioGroup: document.getElementById("audioGroup"),
   toast: document.getElementById("toast"),
+  // Music card (Spotify / Audiomack)
+  musicCard: document.getElementById("musicCard"),
+  musicMeta: document.getElementById("musicMeta"),
+  musicDownloadBtn: document.getElementById("musicDownloadBtn"),
+  musicStatus: document.getElementById("musicStatus"),
   // Spotify search on home page
   spotifySearchInput: document.getElementById("spotifySearchInput"),
   spotifySearchBtn: document.getElementById("spotifySearchBtn"),
@@ -23,12 +28,12 @@ const els = {
   spotifyResultsList: document.getElementById("spotifyResultsList"),
 };
 
-const MONETAG_URL = "https://www.profitablecpmratenetwork.com/gctgbsfhh4?key=9126b1f6ed1aa0deef1342eff621af96";
 let lastInfo = null;
+let lastMediaUrl = null;
 let activeDownload = { downloadId: null, pollTimer: null };
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
-function showToast(message, ms = 2400) {
+function showToast(message, ms = 3000) {
   if (!els.toast) return;
   els.toast.textContent = message;
   els.toast.classList.remove("hidden");
@@ -43,7 +48,7 @@ function setError(message = "") {
 function setDetect(message = "") {
   if (els.detectText) els.detectText.textContent = message;
 }
-function setLoading(isLoading, label = "Processing...") {
+function setLoading(isLoading, label = "Working on it…") {
   if (els.loader) els.loader.classList.toggle("hidden", !isLoading);
   if (els.loaderText) els.loaderText.textContent = label;
   if (els.fetchBtn) els.fetchBtn.disabled = isLoading;
@@ -51,6 +56,9 @@ function setLoading(isLoading, label = "Processing...") {
 }
 function showResults(show) {
   if (els.resultCard) els.resultCard.classList.toggle("hidden", !show);
+}
+function showMusicCard(show) {
+  if (els.musicCard) els.musicCard.classList.toggle("hidden", !show);
 }
 
 // ─── Platform detection ───────────────────────────────────────────────────────
@@ -114,8 +122,6 @@ function buildButton({ label, formatId, type, isBest }) {
   btn.dataset.initialVariant = isBest ? "format-btn-primary" : "";
   btn.dataset.originalLabel = label;
 
-  // Parse label into quality + ext parts
-  // Label format: "Best Video", "1080p (mp4)", "320kbps (mp3)", etc.
   const match = label.match(/^(.+?)\s*\(([^)]+)\)$/);
   let qualityText = label;
   let extText = "";
@@ -137,8 +143,7 @@ function buildButton({ label, formatId, type, isBest }) {
     if (btn.dataset.isStarting === "1") return;
     btn.dataset.isStarting = "1";
 
-    try { window.open(MONETAG_URL, "_blank", "noopener,noreferrer"); } catch {}
-    showToast("Starting download…");
+    showToast("Getting your file ready, please wait…");
 
     const initialVariant = btn.dataset.initialVariant || "";
     if (initialVariant) btn.classList.remove(initialVariant);
@@ -152,7 +157,7 @@ function buildButton({ label, formatId, type, isBest }) {
       await startDownloadAndWait({ url, formatId, type });
       restoreBtn(btn);
     } catch (e) {
-      setError(e?.message || "Download failed.");
+      setError(e?.message || "Something went wrong. Please try again.");
       restoreBtn(btn);
     } finally {
       btn.disabled = false;
@@ -205,19 +210,85 @@ function renderMeta(info) {
   `;
 }
 
+// ─── Render music card (Spotify / Audiomack) ──────────────────────────────────
+function renderMusicCard(info, url) {
+  if (!els.musicMeta) return;
+  const title = escapeHtml(info?.title || "Unknown Track");
+  const uploader = escapeHtml(info?.uploader || "");
+  const rawDur = info?.duration;
+  const duration = (rawDur && rawDur !== "Unknown") ? escapeHtml(String(rawDur)) : "";
+  const thumb = escapeHtml(info?.thumbnail || "");
+
+  els.musicMeta.innerHTML = `
+    <div class="media-meta-block">
+      ${thumb ? `<img class="meta-thumb" src="${thumb}" alt="Album art" />` : ""}
+      <div class="meta-details">
+        <div class="meta-title">${title}</div>
+        ${uploader ? `<div class="meta-sub">Artist: ${uploader}</div>` : ""}
+        ${duration ? `<div class="meta-sub">Duration: ${duration}</div>` : ""}
+      </div>
+    </div>
+  `;
+
+  if (els.musicDownloadBtn) {
+    els.musicDownloadBtn._musicUrl = url;
+  }
+}
+
+// ─── Music download handler ───────────────────────────────────────────────────
+async function triggerMusicDownload(url, btn, statusEl) {
+  if (!url) { showToast("No track loaded. Paste a link and tap Fetch first."); return; }
+
+  btn.disabled = true;
+  btn.textContent = "Fetching your track…";
+  if (statusEl) statusEl.textContent = "Getting download link, please wait…";
+
+  try {
+    const r = await fetch("/get_direct_url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, type: "audio" }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success || !data?.url) {
+      throw new Error(data?.error || "Could not get the download link. Please try again.");
+    }
+
+    const filename = data.filename || "audio.mp3";
+    if (statusEl) statusEl.textContent = "Starting your download…";
+    showToast("Your download has started! Check your downloads folder.", 4000);
+
+    const proxyUrl = `/download-proxy?url=${encodeURIComponent(data.url)}&filename=${encodeURIComponent(filename)}`;
+    const a = document.createElement("a");
+    a.href = proxyUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+
+    if (statusEl) statusEl.textContent = "Download started! Check your downloads folder.";
+  } catch (e) {
+    showToast(e.message || "Download failed. Please try again.", 4000);
+    if (statusEl) statusEl.textContent = "Download failed. Please try again.";
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = "⬇ Download MP3";
+      if (statusEl) statusEl.textContent = "";
+    }, 6000);
+  }
+}
+
 // ─── Render download buttons ──────────────────────────────────────────────────
-function renderButtons(info, isSpotify = false) {
+function renderButtons(info) {
   if (!els.videoButtons || !els.audioButtons) return;
   els.videoButtons.innerHTML = "";
   els.audioButtons.innerHTML = "";
-
-  // Hide video section for Spotify — music only
-  if (els.videoGroup) els.videoGroup.style.display = isSpotify ? "none" : "";
+  if (els.videoGroup) els.videoGroup.style.display = "";
 
   const v = Array.isArray(info?.video_formats) ? info.video_formats : [];
   const a = Array.isArray(info?.audio_formats) ? info.audio_formats : [];
 
-  // Best Video — prominent
   els.videoButtons.appendChild(buildButton({
     label: "Best Quality",
     formatId: "bestvideo+bestaudio/best",
@@ -225,7 +296,6 @@ function renderButtons(info, isSpotify = false) {
     isBest: true,
   }));
 
-  // Best Audio options
   els.audioButtons.appendChild(buildButton({
     label: "Best MP3",
     formatId: "bestaudio/best",
@@ -233,7 +303,6 @@ function renderButtons(info, isSpotify = false) {
     isBest: true,
   }));
 
-  // Additional explicit audio quality presets
   const audioPresets = [
     { label: "MP3 (320kbps)", formatId: "bestaudio[ext=mp3]/bestaudio/best", type: "audio" },
     { label: "MP3 (128kbps)", formatId: "worstaudio[ext=mp3]/worstaudio/worst", type: "audio" },
@@ -241,12 +310,8 @@ function renderButtons(info, isSpotify = false) {
     { label: "OGG (Vorbis)", formatId: "bestaudio[ext=ogg]/bestaudio/best", type: "audio" },
     { label: "WAV (Lossless)", formatId: "bestaudio[ext=wav]/bestaudio/best", type: "audio" },
   ];
+  for (const preset of audioPresets) els.audioButtons.appendChild(buildButton(preset));
 
-  for (const preset of audioPresets) {
-    els.audioButtons.appendChild(buildButton(preset));
-  }
-
-  // Video quality presets
   const videoPresets = [
     { label: "4K (2160p)", formatId: "bestvideo[height<=2160]+bestaudio/best[height<=2160]", type: "video" },
     { label: "1080p (HD)", formatId: "bestvideo[height<=1080]+bestaudio/best[height<=1080]", type: "video" },
@@ -255,12 +320,8 @@ function renderButtons(info, isSpotify = false) {
     { label: "360p", formatId: "bestvideo[height<=360]+bestaudio/best[height<=360]", type: "video" },
     { label: "240p", formatId: "bestvideo[height<=240]+bestaudio/best[height<=240]", type: "video" },
   ];
+  for (const preset of videoPresets) els.videoButtons.appendChild(buildButton(preset));
 
-  for (const preset of videoPresets) {
-    els.videoButtons.appendChild(buildButton(preset));
-  }
-
-  // Append any extra formats from the backend (up to 4 extra per type)
   const addFormats = (arr, type, cap, mountEl) => {
     for (const f of arr.slice(0, cap)) {
       const q = f?.quality ? String(f.quality) : type === "audio" ? "Audio" : "Video";
@@ -271,17 +332,22 @@ function renderButtons(info, isSpotify = false) {
       mountEl.appendChild(buildButton({ label, formatId: fid, type }));
     }
   };
-
   addFormats(v, "video", 4, els.videoButtons);
   addFormats(a, "audio", 3, els.audioButtons);
 }
 
 // ─── Fetch info ───────────────────────────────────────────────────────────────
 async function fetchInfo(url) {
-  const isSpotify = (url || "").toLowerCase().includes("spotify.com");
+  const urlLower = (url || "").toLowerCase();
+  const isSpotify = urlLower.includes("spotify.com");
+  const isAudiomack = urlLower.includes("audiomack.com");
+  const isMusicPlatform = isSpotify || isAudiomack;
+
   setError("");
   showResults(false);
-  setLoading(true, "Fetching media info…");
+  showMusicCard(false);
+  setLoading(true, isMusicPlatform ? "Looking up your track…" : "Fetching media info…");
+
   try {
     const r = await fetch("/fetch_info", {
       method: "POST",
@@ -289,13 +355,23 @@ async function fetchInfo(url) {
       body: JSON.stringify({ url }),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data?.success) throw new Error(data?.error || "Could not fetch media info.");
+    if (!r.ok || !data?.success) throw new Error(data?.error || "Could not fetch media info. Please check the link and try again.");
+
     lastInfo = data;
-    renderMeta(data);
-    renderButtons(data, isSpotify);
-    showResults(true);
-    showToast("Choose a format below to download.");
-    els.resultCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+    lastMediaUrl = url;
+
+    if (isMusicPlatform) {
+      renderMusicCard(data, url);
+      showMusicCard(true);
+      showToast("Track found! Tap the button below to download it to your device.", 4000);
+      els.musicCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+    } else {
+      renderMeta(data);
+      renderButtons(data);
+      showResults(true);
+      showToast("Ready! Pick a quality below to start your download.");
+      els.resultCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
   } finally {
     setLoading(false);
   }
@@ -308,37 +384,13 @@ function stopPolling() {
   activeDownload.downloadId = null;
 }
 
-async function pollUntilComplete(downloadId, timeoutMs = 120000) {
-  const started = Date.now();
-  return new Promise((resolve, reject) => {
-    activeDownload.pollTimer = window.setInterval(async () => {
-      try {
-        if (Date.now() - started > timeoutMs) {
-          stopPolling();
-          reject(new Error("Download timed out. Please try again."));
-          return;
-        }
-        const r = await fetch(`/progress/${downloadId}`);
-        const p = await r.json().catch(() => ({}));
-        if (p?.status === "error") { stopPolling(); reject(new Error(p?.message || "Download failed.")); return; }
-        if (p?.status === "complete" && p?.download_url) { stopPolling(); resolve(p.download_url); return; }
-        if (["downloading","processing","queued","starting"].includes(p?.status)) {
-          const pct = typeof p.percentage === "number" ? Math.round(p.percentage) : 0;
-          setDetect(`Downloading… ${pct}%`);
-          if (els.loaderText) els.loaderText.textContent = `Downloading… ${pct}%`;
-        }
-      } catch {}
-    }, 700);
-  });
-}
-
 async function startDownloadAndWait({ url, formatId, type }) {
   setError("");
-  setDetect("Fetching direct link…");
+  setDetect("Getting your download link…");
   stopPolling();
 
-  if (els.loaderText) els.loaderText.textContent = "Fetching direct link…";
-  setLoading(true, "Fetching direct link…");
+  if (els.loaderText) els.loaderText.textContent = "Getting your download link…";
+  setLoading(true, "Getting your download link…");
 
   try {
     const r = await fetch("/get_direct_url", {
@@ -348,12 +400,11 @@ async function startDownloadAndWait({ url, formatId, type }) {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success || !data?.url) {
-      throw new Error(data?.error || "Could not get download link.");
+      throw new Error(data?.error || "Could not get the download link. Please try again.");
     }
 
-    setDetect("Opening download…");
-    showToast("Opening download link…");
-    // Open the direct CDN URL in a new tab — the browser handles the download.
+    setDetect("Opening your download…");
+    showToast("Your download is opening — check your downloads folder!", 4000);
     window.open(data.url, "_blank", "noopener,noreferrer");
   } finally {
     setLoading(false);
@@ -392,39 +443,52 @@ function createSpotifyTrackItem(track) {
     if (dlBtn.dataset.busy === "1") return;
     dlBtn.dataset.busy = "1";
     dlBtn.disabled = true;
-    dlBtn.textContent = "⏳ Fetching link…";
-
-    // Open monetag ad
-    try { window.open(MONETAG_URL, "_blank", "noopener,noreferrer"); } catch {}
+    dlBtn.textContent = "Getting your track…";
 
     try {
-      // Use spotify_url if available, otherwise build a search query
       const spotifyUrl = track.spotify_url || track.spotifyUrl || "";
       let directUrl = "";
+      let filename = "audio.mp3";
 
       if (spotifyUrl && spotifyUrl.includes("spotify.com")) {
-        // Get direct link via the server (which calls jerrycoder)
         const r = await fetch("/get_direct_url", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ url: spotifyUrl, type: "audio" }),
         });
         const d = await r.json().catch(() => ({}));
-        if (d?.success && d?.url) directUrl = d.url;
+        if (d?.success && d?.url) { directUrl = d.url; filename = d.filename || filename; }
       }
 
       if (!directUrl) {
-        // Fallback: use the stream-spotify endpoint (query-based)
         const artistStr = Array.isArray(track.artists) ? track.artists.join(", ") : (track.artists || "");
         const query = [track.title, artistStr].filter(Boolean).join(" ");
-        if (!query) { showToast("Track info missing.", 3000); return; }
+        if (!query) { showToast("Track info is missing. Please try another song.", 3000); return; }
         const safeName = ([track.title, artistStr].filter(Boolean).join(" - "))
           .replace(/[\\/:*?"<>|]/g, "_").substring(0, 150) || "audio";
         directUrl = `/stream-spotify/${encodeURIComponent(safeName)}.mp3?q=${encodeURIComponent(query)}`;
+        filename = `${safeName}.mp3`;
       }
 
-      window.open(directUrl, "_blank", "noopener,noreferrer");
-      showToast("Download opened — check your new tab.", 4000);
+      showToast("Your download has started! Check your downloads folder.", 4000);
+
+      const isProxy = directUrl.startsWith("/stream-spotify") ? false : true;
+      if (isProxy) {
+        const proxyUrl = `/download-proxy?url=${encodeURIComponent(directUrl)}&filename=${encodeURIComponent(filename)}`;
+        const a = document.createElement("a");
+        a.href = proxyUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      } else {
+        const a = document.createElement("a");
+        a.href = directUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+      }
     } catch {
       showToast("Download failed. Please try again.", 3000);
     } finally {
@@ -432,7 +496,7 @@ function createSpotifyTrackItem(track) {
         dlBtn.disabled = false;
         dlBtn.dataset.busy = "0";
         dlBtn.textContent = "⬇ Download MP3";
-      }, 4000);
+      }, 5000);
     }
   });
 
@@ -442,7 +506,7 @@ function createSpotifyTrackItem(track) {
 async function performSpotifySearch() {
   const query = (els.spotifySearchInput?.value || "").trim();
   if (!query) {
-    if (els.spotifySearchError) els.spotifySearchError.textContent = "Enter a song name or artist to search.";
+    if (els.spotifySearchError) els.spotifySearchError.textContent = "Type a song name or artist name to search.";
     return;
   }
   if (els.spotifySearchError) els.spotifySearchError.textContent = "";
@@ -457,17 +521,17 @@ async function performSpotifySearch() {
       body: JSON.stringify({ query }),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data.success) throw new Error(data.error || "Search failed.");
+    if (!r.ok || !data.success) throw new Error(data.error || "Search failed. Please try again.");
     const results = data.results || [];
     if (!results.length) {
-      if (els.spotifyResultsList) els.spotifyResultsList.innerHTML = `<p class="tiny" style="text-align:center;padding:12px 0;">No results found. Try a different search.</p>`;
+      if (els.spotifyResultsList) els.spotifyResultsList.innerHTML = `<p class="tiny" style="text-align:center;padding:12px 0;">Nothing came up — try a different song or artist name.</p>`;
     } else {
       results.forEach((track) => {
         els.spotifyResultsList?.appendChild(createSpotifyTrackItem(track));
       });
     }
   } catch (e) {
-    if (els.spotifySearchError) els.spotifySearchError.textContent = e.message || "Search failed.";
+    if (els.spotifySearchError) els.spotifySearchError.textContent = e.message || "Search failed. Please try again.";
     if (els.spotifyResultsList) els.spotifyResultsList.classList.add("hidden");
   } finally {
     if (els.spotifySearchLoader) els.spotifySearchLoader.classList.add("hidden");
@@ -488,20 +552,26 @@ function wireEvents() {
     setError("");
     try {
       const text = await navigator.clipboard.readText();
-      if (!text) { showToast("Clipboard is empty."); return; }
+      if (!text) { showToast("Your clipboard is empty — copy a link first!"); return; }
       els.mediaInput.value = text.trim();
       setDetect(`Detected: ${detectPlatform(els.mediaInput.value)}`);
-      showToast("Pasted from clipboard.");
+      showToast("Link pasted! Tap Fetch Media to continue.");
     } catch {
-      showToast("Paste blocked by browser. Long-press and paste manually.");
+      showToast("Browser blocked clipboard access. Please long-press the box and paste manually.");
     }
   });
 
   els.fetchBtn?.addEventListener("click", async () => {
     const url = (els.mediaInput?.value || "").trim();
-    if (!url) { setError("Paste a media link first."); return; }
+    if (!url) { setError("Please paste a media link first."); return; }
     setDetect(`Detected: ${detectPlatform(url)}`);
-    try { await fetchInfo(url); } catch (e) { setError(e?.message || "Failed to fetch."); }
+    try { await fetchInfo(url); } catch (e) { setError(e?.message || "Something went wrong. Please try again."); }
+  });
+
+  // Music card download button
+  els.musicDownloadBtn?.addEventListener("click", () => {
+    const url = els.musicDownloadBtn._musicUrl;
+    triggerMusicDownload(url, els.musicDownloadBtn, els.musicStatus);
   });
 
   // Spotify search

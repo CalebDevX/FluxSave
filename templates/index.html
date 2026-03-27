@@ -3,10 +3,41 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>FluxSave – All Media Downloader</title>
-  <meta name="description" content="Download TikTok videos without watermark, Snapchat stories, YouTube videos, Instagram reels, Pinterest clips, X videos and more with FluxSave." />
-  <meta name="keywords" content="fluxsave, media downloader, tiktok downloader, snapchat downloader, youtube downloader, instagram downloader, pinterest downloader, x downloader, twitter downloader, spotify downloader" />
+  <title>FluxSave - Free YouTube, TikTok, Spotify, Instagram & Audiomack Downloader</title>
+  <meta name="description" content="FluxSave is the fastest free media downloader. Download YouTube videos, TikTok without watermark, Spotify songs, Audiomack tracks, Instagram reels and more — no signup needed." />
+  <meta name="keywords" content="fluxsave, free media downloader, youtube downloader, tiktok downloader no watermark, spotify downloader, audiomack downloader, instagram downloader, facebook video downloader, download mp3, download mp4" />
   <meta name="author" content="Achek Digital Solutions" />
+  <meta name="robots" content="index, follow" />
+  <link rel="canonical" href="https://fluxsave.achek.com.ng/" />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:url" content="https://fluxsave.achek.com.ng/" />
+  <meta property="og:title" content="FluxSave - Free YouTube, TikTok, Spotify & Instagram Downloader" />
+  <meta property="og:description" content="Download videos and music from YouTube, TikTok, Spotify, Audiomack, Instagram, Facebook and 1000+ sites. Fast, free, no signup." />
+  <meta property="og:image" content="https://fluxsave.achek.com.ng/static/favicon.png" />
+
+  <!-- Twitter Card -->
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="FluxSave - Free Media Downloader" />
+  <meta name="twitter:description" content="Download YouTube, TikTok, Spotify, Audiomack, Instagram & more. Fast and free." />
+  <meta name="twitter:image" content="https://fluxsave.achek.com.ng/static/favicon.png" />
+
+  <!-- JSON-LD Structured Data -->
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "FluxSave",
+    "url": "https://fluxsave.achek.com.ng/",
+    "description": "Free online media downloader. Download videos and music from YouTube, TikTok, Spotify, Audiomack, Instagram, Facebook and 1000+ platforms.",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "All",
+    "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+    "creator": { "@type": "Organization", "name": "Achek Digital Solutions", "url": "https://achek.com.ng" }
+  }
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700;900&display=swap" rel="stylesheet" />
@@ -36,16 +67,16 @@
         Download <span class="grad">Any Media</span>
       </h1>
       <p class="subtitle">
-        TikTok without watermark, Snapchat stories, YouTube videos,
-        Instagram reels, Pinterest clips, X videos and more.
+        TikTok without watermark, Spotify songs, Audiomack tracks, YouTube videos,
+        Instagram reels, Facebook clips and more — all in one place.
       </p>
     </section>
 
     <!-- Main URL input card -->
     <section class="card">
-      <div class="cardTitle">Paste Media Link</div>
+      <div class="cardTitle">Paste Your Link</div>
       <p class="tiny">
-        FluxSave auto-detects the platform and prepares the best download options instantly.
+        FluxSave auto-detects the platform and gets the best download ready instantly.
       </p>
 
       <div class="input-wrapper mobile-stack">
@@ -53,7 +84,7 @@
           class="input"
           id="mediaInput"
           type="url"
-          placeholder="Paste TikTok, YouTube, Instagram, Spotify, X link..."
+          placeholder="Paste YouTube, TikTok, Spotify, Audiomack, Instagram link…"
           autocomplete="off"
         />
         <button class="icon-btn" id="pasteBtn" type="button">Paste</button>
@@ -66,11 +97,11 @@
 
       <div id="loader" class="loader hidden">
         <div class="spinner"></div>
-        <span id="loaderText">Processing...</span>
+        <span id="loaderText">Working on it…</span>
       </div>
     </section>
 
-    <!-- Download options result card -->
+    <!-- Download options result card (video / audio platforms) -->
     <section id="resultCard" class="card hidden">
       <div class="cardTitle">⬇ Download Options</div>
       <div id="mediaMeta" class="media-meta-block"></div>
@@ -87,6 +118,14 @@
       </div>
     </section>
 
+    <!-- Music card (Spotify / Audiomack direct download) -->
+    <section id="musicCard" class="card hidden">
+      <div class="cardTitle">🎵 Track Ready</div>
+      <div id="musicMeta" class="media-meta-block"></div>
+      <button class="cta" id="musicDownloadBtn" type="button">⬇ Download MP3</button>
+      <div id="musicStatus" class="detect-text" style="margin-top:10px;text-align:center;"></div>
+    </section>
+
     <!-- Spotify Search Section -->
     <section class="card spotify-card">
       <div class="cardTitle">
@@ -99,7 +138,7 @@
           class="input"
           id="spotifySearchInput"
           type="text"
-          placeholder="Search songs, artists, albums..."
+          placeholder="Search songs, artists, albums…"
           autocomplete="off"
         />
         <button class="icon-btn spotify-search-btn" id="spotifySearchBtn" type="button">Search</button>
@@ -107,7 +146,7 @@
 
       <div id="spotifySearchLoader" class="loader hidden">
         <div class="spinner spinner-green"></div>
-        <span>Searching Spotify...</span>
+        <span>Searching Spotify…</span>
       </div>
 
       <div id="spotifySearchError" class="error-text"></div>
@@ -134,10 +173,24 @@
     <section class="card">
       <div class="cardTitle">Why FluxSave?</div>
       <p class="tiny" style="text-align:left;">
-        FluxSave is designed for fast media fetching across major platforms.
-        Download TikTok videos without watermark, save Snapchat spotlight clips,
-        grab YouTube videos, Instagram reels, Pinterest clips, X videos, Spotify songs and more in one clean interface.
+        FluxSave is the fastest free media downloader for all major platforms.
+        Download TikTok videos without watermark, save Spotify songs as MP3,
+        grab Audiomack tracks, YouTube videos in HD, Instagram reels, Facebook clips and more.
+        No signup. No ads to click. Just paste and download.
       </p>
+    </section>
+
+    <!-- Platform links for SEO -->
+    <section class="card">
+      <div class="cardTitle">Supported Platforms</div>
+      <div class="btn-grid" style="flex-wrap:wrap;gap:10px;">
+        <a href="/youtube-downloader" class="ghost" style="text-decoration:none;text-align:center;">YouTube</a>
+        <a href="/tiktok-downloader" class="ghost" style="text-decoration:none;text-align:center;">TikTok</a>
+        <a href="/instagram-downloader" class="ghost" style="text-decoration:none;text-align:center;">Instagram</a>
+        <a href="/facebook-downloader" class="ghost" style="text-decoration:none;text-align:center;">Facebook</a>
+        <a href="/spotify-downloader" class="ghost" style="text-decoration:none;text-align:center;">Spotify</a>
+        <a href="/audiomack-downloader" class="ghost" style="text-decoration:none;text-align:center;">Audiomack</a>
+      </div>
     </section>
 
     <footer class="footer">
@@ -149,6 +202,6 @@
 
   <div id="toast" class="toast hidden"></div>
 
-  <script src="{{ url_for('static', filename='js/main.js') }}?v=2"></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}?v=3"></script>
 </body>
 </html>

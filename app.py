@@ -326,8 +326,8 @@ def get_direct_url():
             'ignore_no_formats_error': True,
             'extractor_args': {
                 'youtube': {
-                    # ios works reliably from server IPs; tv_embedded as fallback
-                    'player_client': ['ios', 'tv_embedded'],
+                    # Use multiple clients for reliability on server IPs
+                    'player_client': ['ios', 'web_creator', 'tv_embedded', 'mweb'],
                 },
             },
         }
@@ -363,13 +363,57 @@ def get_direct_url():
 
         # Scan formats list for a usable direct URL
         if not direct_url and 'formats' in info:
-            for f in reversed(info['formats']):
-                proto = f.get('protocol', '')
-                furl = f.get('url', '')
-                if furl and proto in ('https', 'http', 'm3u8_native', ''):
-                    direct_url = furl
-                    ext = f.get('ext', ext)
-                    break
+            formats = info['formats']
+
+            def is_http_url(u):
+                return isinstance(u, str) and (u.startswith('http://') or u.startswith('https://'))
+
+            if download_type == 'audio':
+                # Prefer audio-only formats (no video stream) with a direct HTTP URL
+                candidates = [
+                    f for f in formats
+                    if is_http_url(f.get('url', ''))
+                    and f.get('acodec') not in (None, 'none')
+                    and f.get('vcodec') in (None, 'none')
+                ]
+                if not candidates:
+                    # Fall back to any format with audio and a direct URL
+                    candidates = [
+                        f for f in formats
+                        if is_http_url(f.get('url', ''))
+                        and f.get('acodec') not in (None, 'none')
+                    ]
+            else:
+                # Prefer muxed formats (both video + audio) with a direct HTTP URL
+                candidates = [
+                    f for f in formats
+                    if is_http_url(f.get('url', ''))
+                    and f.get('vcodec') not in (None, 'none')
+                    and f.get('acodec') not in (None, 'none')
+                ]
+                if not candidates:
+                    # Fall back to any format with video and a direct URL
+                    candidates = [
+                        f for f in formats
+                        if is_http_url(f.get('url', ''))
+                        and f.get('vcodec') not in (None, 'none')
+                    ]
+                if not candidates:
+                    # Last resort: any format with a direct HTTP URL
+                    candidates = [
+                        f for f in formats
+                        if is_http_url(f.get('url', ''))
+                    ]
+
+            if candidates:
+                # Pick the best available by filesize/tbr (highest quality)
+                best = sorted(
+                    candidates,
+                    key=lambda f: f.get('filesize') or f.get('tbr') or 0,
+                    reverse=True
+                )[0]
+                direct_url = best['url']
+                ext = best.get('ext', ext)
 
         if not direct_url:
             return jsonify({'error': 'No direct download URL available for this content'}), 400

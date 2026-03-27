@@ -285,51 +285,91 @@ def get_direct_url():
                 return jsonify({'error': f'Audiomack error: {str(e)}'}), 500
 
         # ── Everything else via yt-dlp ────────────────────────────────────────
-        # Use a single-stream format selector (no merging) so we get one direct URL.
-        if download_type == 'audio':
-            fmt_selector = 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio/best'
-        else:
-            # Prefer a muxed mp4 stream (video+audio already combined)
-            fmt_selector = 'best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/best'
+        # We need a single-stream URL (no merging) so we can redirect the browser.
+        # YouTube only serves muxed (video+audio) streams for lower resolutions.
+        # For audio we grab the best audio-only stream.
+        # Use ios/tv_embedded clients — they work reliably on server IPs (Vercel, Render, etc.)
+        # where web/android clients get bot-detected.
 
-        ydl_opts = {
+        is_youtube = ('youtube.com' in url_lower or 'youtu.be' in url_lower)
+
+        if download_type == 'audio':
+            # Audio-only: m4a then webm then anything
+            format_attempts = [
+                'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best[acodec!=none]',
+                'bestaudio/best',
+            ]
+        else:
+            # Video: YouTube's format 18 is 360p muxed mp4 — most reliably available.
+            # Then fall back to other muxed streams, then any stream.
+            if is_youtube:
+                format_attempts = [
+                    '18',
+                    'best[ext=mp4][vcodec!=none][acodec!=none]',
+                    'best[vcodec!=none][acodec!=none]',
+                    'best[ext=mp4]/best',
+                ]
+            else:
+                format_attempts = [
+                    'best[ext=mp4][vcodec!=none][acodec!=none]',
+                    'best[vcodec!=none][acodec!=none]',
+                    'best[ext=mp4]/best',
+                    'best',
+                ]
+
+        base_ydl_opts = {
             'quiet': True,
             'no_warnings': True,
-            'format': fmt_selector,
             'socket_timeout': 30,
             'geo_bypass': True,
             'geo_bypass_country': 'US',
             'nocheckcertificate': True,
             'force_ipv4': True,
+            'ignore_no_formats_error': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['web', 'android'],
+                    # ios works reliably from server IPs; tv_embedded as fallback
+                    'player_client': ['ios', 'tv_embedded'],
                 },
             },
         }
+
         cookie_file = _get_cookie_file()
         if cookie_file:
-            ydl_opts['cookiefile'] = cookie_file
+            base_ydl_opts['cookiefile'] = cookie_file
 
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url, download=False)
+        info = None
+        last_error = None
+        for fmt in format_attempts:
+            try:
+                opts = dict(base_ydl_opts, format=fmt)
+                with yt_dlp.YoutubeDL(opts) as ydl:
+                    info = ydl.extract_info(url, download=False)
+                if info and (info.get('url') or info.get('formats')):
+                    break
+            except Exception as e:
+                last_error = e
+                info = None
+                continue
 
         if not info:
-            return jsonify({'error': 'Could not extract media info'}), 400
+            err = str(last_error) if last_error else 'Could not extract media info'
+            return jsonify({'error': err}), 400
 
         title = info.get('title', 'download')
         ext = info.get('ext', 'mp4' if download_type == 'video' else 'm4a')
         safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:150] or 'download'
 
-        # Try top-level url first (yt-dlp sets this when a single format is resolved)
-        direct_url = info.get('url') or info.get('webpage_url')
+        # yt-dlp sets info['url'] when a single format is resolved
+        direct_url = info.get('url')
 
-        # Fall back to scanning formats list for a URL with a usable protocol
+        # Scan formats list for a usable direct URL
         if not direct_url and 'formats' in info:
             for f in reversed(info['formats']):
                 proto = f.get('protocol', '')
-                if f.get('url') and proto in ('https', 'http', 'm3u8_native', 'rtmp', ''):
-                    direct_url = f['url']
+                furl = f.get('url', '')
+                if furl and proto in ('https', 'http', 'm3u8_native', ''):
+                    direct_url = furl
                     ext = f.get('ext', ext)
                     break
 
@@ -551,9 +591,8 @@ def fetch_info():
                     'webpage_download': True,
                 },
                 'youtube': {
-                    # tv_embedded and ios clients bypass bot-detection on server IPs
-                    # without requiring sign-in cookies.
-                    'player_client': ['web', 'android'],
+                    # ios + tv_embedded bypass bot-detection on server IPs (Vercel, Render, etc.)
+                    'player_client': ['ios', 'tv_embedded'],
                 },
                 'facebook': {
                     'legacy_api': False,
@@ -1125,7 +1164,7 @@ def download():
 
             _yt_extractor_args = {
                 'youtube': {
-                    'player_client': ['web', 'android'],
+                    'player_client': ['ios', 'tv_embedded'],
                 }
             }
             _yt_common = {

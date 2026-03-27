@@ -334,33 +334,31 @@ async function pollUntilComplete(downloadId, timeoutMs = 120000) {
 
 async function startDownloadAndWait({ url, formatId, type }) {
   setError("");
-  setDetect("Preparing download…");
+  setDetect("Fetching direct link…");
   stopPolling();
 
-  const startR = await fetch("/start_download", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, format_id: formatId, type }),
-  });
-  const startData = await startR.json().catch(() => ({}));
-  if (!startR.ok || !startData?.success || !startData?.download_id) {
-    throw new Error(startData?.error || "Failed to start download.");
+  if (els.loaderText) els.loaderText.textContent = "Fetching direct link…";
+  setLoading(true, "Fetching direct link…");
+
+  try {
+    const r = await fetch("/get_direct_url", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url, format_id: formatId, type }),
+    });
+    const data = await r.json().catch(() => ({}));
+    if (!r.ok || !data?.success || !data?.url) {
+      throw new Error(data?.error || "Could not get download link.");
+    }
+
+    setDetect("Opening download…");
+    showToast("Opening download link…");
+    // Open the direct CDN URL in a new tab — the browser handles the download.
+    window.open(data.url, "_blank", "noopener,noreferrer");
+  } finally {
+    setLoading(false);
+    setDetect("");
   }
-
-  const downloadId = startData.download_id;
-  activeDownload.downloadId = downloadId;
-
-  const dlR = await fetch("/download", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ url, format_id: formatId, type, download_id: downloadId }),
-  });
-  await dlR.json().catch(() => ({}));
-
-  const downloadUrl = await pollUntilComplete(downloadId);
-  setDetect("Download ready!");
-  showToast("Download starting…");
-  window.location.href = downloadUrl;
 }
 
 // ─── Spotify search on home page ──────────────────────────────────────────────
@@ -390,49 +388,52 @@ function createSpotifyTrackItem(track) {
   `;
 
   const dlBtn = item.querySelector(".spotify-dl-btn");
-  dlBtn.addEventListener("click", () => {
+  dlBtn.addEventListener("click", async () => {
     if (dlBtn.dataset.busy === "1") return;
-
-    // Open monetag redirect
-    try { window.open(MONETAG_URL, "_blank", "noopener,noreferrer"); } catch {}
-
-    // Build search query and a clean filename from track metadata
-    const artistStr = Array.isArray(track.artists)
-      ? track.artists.join(", ")
-      : (track.artists || "");
-    const query = [track.title, artistStr].filter(Boolean).join(" ");
-    const displayName = [track.title, artistStr].filter(Boolean).join(" - ");
-
-    if (!query) {
-      showToast("Track info missing — cannot download.", 3000);
-      return;
-    }
-
-    // Stream directly to the user's device — no file saved on the server.
-    // Filename is embedded in the URL path so the browser always saves it correctly.
-    const safeName = displayName.replace(/[\\/:*?"<>|]/g, "_").substring(0, 150) || "audio";
-    const streamUrl = `/stream-spotify/${encodeURIComponent(safeName)}.mp3?q=${encodeURIComponent(query)}`;
-
     dlBtn.dataset.busy = "1";
     dlBtn.disabled = true;
-    dlBtn.textContent = "⏳ Starting…";
+    dlBtn.textContent = "⏳ Fetching link…";
 
-    // Use a hidden <a> with the download attribute so the page doesn't navigate away
-    const a = document.createElement("a");
-    a.href = streamUrl;
-    a.download = `${safeName}.mp3`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
+    // Open monetag ad
+    try { window.open(MONETAG_URL, "_blank", "noopener,noreferrer"); } catch {}
 
-    showToast("Download started — check your downloads folder.", 4000);
+    try {
+      // Use spotify_url if available, otherwise build a search query
+      const spotifyUrl = track.spotify_url || track.spotifyUrl || "";
+      let directUrl = "";
 
-    // Re-enable button after a moment so user can download again
-    setTimeout(() => {
-      dlBtn.disabled = false;
-      dlBtn.dataset.busy = "0";
-      dlBtn.textContent = "⬇ Download MP3";
-    }, 4000);
+      if (spotifyUrl && spotifyUrl.includes("spotify.com")) {
+        // Get direct link via the server (which calls jerrycoder)
+        const r = await fetch("/get_direct_url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: spotifyUrl, type: "audio" }),
+        });
+        const d = await r.json().catch(() => ({}));
+        if (d?.success && d?.url) directUrl = d.url;
+      }
+
+      if (!directUrl) {
+        // Fallback: use the stream-spotify endpoint (query-based)
+        const artistStr = Array.isArray(track.artists) ? track.artists.join(", ") : (track.artists || "");
+        const query = [track.title, artistStr].filter(Boolean).join(" ");
+        if (!query) { showToast("Track info missing.", 3000); return; }
+        const safeName = ([track.title, artistStr].filter(Boolean).join(" - "))
+          .replace(/[\\/:*?"<>|]/g, "_").substring(0, 150) || "audio";
+        directUrl = `/stream-spotify/${encodeURIComponent(safeName)}.mp3?q=${encodeURIComponent(query)}`;
+      }
+
+      window.open(directUrl, "_blank", "noopener,noreferrer");
+      showToast("Download opened — check your new tab.", 4000);
+    } catch {
+      showToast("Download failed. Please try again.", 3000);
+    } finally {
+      setTimeout(() => {
+        dlBtn.disabled = false;
+        dlBtn.dataset.busy = "0";
+        dlBtn.textContent = "⬇ Download MP3";
+      }, 4000);
+    }
   });
 
   return item;

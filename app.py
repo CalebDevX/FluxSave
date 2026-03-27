@@ -235,6 +235,117 @@ def serve_download(filename):
     resp.headers['Content-Disposition'] = f'attachment; filename="{filename}"'
     return resp
 
+@app.route('/get_direct_url', methods=['POST'])
+def get_direct_url():
+    """Extract the raw stream URL for a media item without downloading it on the server.
+    Returns the direct CDN URL so the browser can download the file itself.
+    """
+    try:
+        data = request.get_json()
+        url = (data.get('url') or '').strip()
+        download_type = (data.get('type') or 'video').strip()
+
+        if not url:
+            return jsonify({'error': 'URL is required'}), 400
+
+        url_lower = url.lower()
+
+        # ── Spotify ──────────────────────────────────────────────────────────
+        if 'spotify.com' in url_lower:
+            try:
+                resolved = resolve_spotify_url(url)
+                res = requests.get(
+                    'https://jerrycoder.oggyapi.workers.dev/dspotify',
+                    params={'url': resolved},
+                    timeout=20
+                )
+                res.raise_for_status()
+                d = res.json()
+                if d.get('status') == 'success' and d.get('download_link'):
+                    title = d.get('title', 'track')
+                    artist = d.get('artist', '')
+                    safe = re.sub(r'[\\/:*?"<>|]', '_', f'{title} - {artist}')[:150] or 'audio'
+                    return jsonify({'success': True, 'url': d['download_link'], 'filename': f'{safe}.mp3'})
+                return jsonify({'error': 'Could not get Spotify download link'}), 500
+            except Exception as e:
+                return jsonify({'error': f'Spotify error: {str(e)}'}), 500
+
+        # ── Audiomack ────────────────────────────────────────────────────────
+        if 'audiomack.com' in url_lower:
+            try:
+                info = amdl.extract_info(url)
+                for f in info.get('formats', []):
+                    if f.get('url'):
+                        title = info.get('title', 'audio')
+                        safe = re.sub(r'[\\/:*?"<>|]', '_', title)[:150] or 'audio'
+                        ext = f.get('ext', 'mp3')
+                        return jsonify({'success': True, 'url': f['url'], 'filename': f'{safe}.{ext}'})
+                return jsonify({'error': 'No direct URL found for this Audiomack track'}), 500
+            except Exception as e:
+                return jsonify({'error': f'Audiomack error: {str(e)}'}), 500
+
+        # ── Everything else via yt-dlp ────────────────────────────────────────
+        # Use a single-stream format selector (no merging) so we get one direct URL.
+        if download_type == 'audio':
+            fmt_selector = 'bestaudio[ext=m4a]/bestaudio[ext=mp3]/bestaudio/best'
+        else:
+            # Prefer a muxed mp4 stream (video+audio already combined)
+            fmt_selector = 'best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/best'
+
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'format': fmt_selector,
+            'socket_timeout': 30,
+            'geo_bypass': True,
+            'geo_bypass_country': 'US',
+            'nocheckcertificate': True,
+            'force_ipv4': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['web', 'android'],
+                },
+            },
+        }
+        cookie_file = _get_cookie_file()
+        if cookie_file:
+            ydl_opts['cookiefile'] = cookie_file
+
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        if not info:
+            return jsonify({'error': 'Could not extract media info'}), 400
+
+        title = info.get('title', 'download')
+        ext = info.get('ext', 'mp4' if download_type == 'video' else 'm4a')
+        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:150] or 'download'
+
+        # Try top-level url first (yt-dlp sets this when a single format is resolved)
+        direct_url = info.get('url') or info.get('webpage_url')
+
+        # Fall back to scanning formats list for a URL with a usable protocol
+        if not direct_url and 'formats' in info:
+            for f in reversed(info['formats']):
+                proto = f.get('protocol', '')
+                if f.get('url') and proto in ('https', 'http', 'm3u8_native', 'rtmp', ''):
+                    direct_url = f['url']
+                    ext = f.get('ext', ext)
+                    break
+
+        if not direct_url:
+            return jsonify({'error': 'No direct download URL available for this content'}), 400
+
+        return jsonify({
+            'success': True,
+            'url': direct_url,
+            'filename': f'{safe_title}.{ext}',
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/ads.txt')
 def ads_txt():
     return send_from_directory('.', 'ads.txt', mimetype='text/plain')

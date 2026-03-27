@@ -365,44 +365,50 @@ def get_direct_url():
         if not direct_url and 'formats' in info:
             formats = info['formats']
 
-            def is_http_url(u):
-                return isinstance(u, str) and (u.startswith('http://') or u.startswith('https://'))
+            def is_real_stream(f):
+                """Return True only for genuine audio/video stream formats.
+                Excludes storyboards (mhtml sprite sheets), thumbnails, and
+                any format where both codecs are absent."""
+                furl = f.get('url', '')
+                if not (isinstance(furl, str) and (furl.startswith('http://') or furl.startswith('https://'))):
+                    return False
+                # Reject storyboard / mhtml formats (YouTube preview sprite sheets)
+                if f.get('ext') == 'mhtml' or f.get('protocol') == 'mhtml':
+                    return False
+                # Reject formats that carry neither audio nor video (thumbnails, storyboards)
+                if f.get('vcodec') in (None, 'none') and f.get('acodec') in (None, 'none'):
+                    return False
+                return True
 
             if download_type == 'audio':
-                # Prefer audio-only formats (no video stream) with a direct HTTP URL
+                # Prefer audio-only formats (no video stream)
                 candidates = [
                     f for f in formats
-                    if is_http_url(f.get('url', ''))
+                    if is_real_stream(f)
                     and f.get('acodec') not in (None, 'none')
                     and f.get('vcodec') in (None, 'none')
                 ]
                 if not candidates:
-                    # Fall back to any format with audio and a direct URL
+                    # Fall back to any real format with audio
                     candidates = [
                         f for f in formats
-                        if is_http_url(f.get('url', ''))
+                        if is_real_stream(f)
                         and f.get('acodec') not in (None, 'none')
                     ]
             else:
-                # Prefer muxed formats (both video + audio) with a direct HTTP URL
+                # Prefer muxed formats (both video + audio in one stream)
                 candidates = [
                     f for f in formats
-                    if is_http_url(f.get('url', ''))
+                    if is_real_stream(f)
                     and f.get('vcodec') not in (None, 'none')
                     and f.get('acodec') not in (None, 'none')
                 ]
                 if not candidates:
-                    # Fall back to any format with video and a direct URL
+                    # Fall back to video-only stream (no audio)
                     candidates = [
                         f for f in formats
-                        if is_http_url(f.get('url', ''))
+                        if is_real_stream(f)
                         and f.get('vcodec') not in (None, 'none')
-                    ]
-                if not candidates:
-                    # Last resort: any format with a direct HTTP URL
-                    candidates = [
-                        f for f in formats
-                        if is_http_url(f.get('url', ''))
                     ]
 
             if candidates:

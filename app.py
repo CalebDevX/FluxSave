@@ -309,15 +309,20 @@ def get_direct_url():
         else:
             if is_youtube:
                 format_attempts = [
-                    # Format 18 = 360p muxed mp4, highest YouTube reliability
+                    # Named muxed format IDs — most reliable for YouTube
+                    # 22 = 720p muxed MP4 (when available), 18 = 360p muxed MP4 (most common)
+                    # 43 = 360p WebM, 36 = 240p 3GP, 17 = 144p 3GP — older but widely available
+                    '22',
                     '18',
-                    # Try quality-specific muxed mp4 (up to 720p — above this YouTube is adaptive only)
+                    '43',
+                    '36',
+                    '17',
+                    # Format-string fallbacks (muxed only, no adaptive streams)
                     'best[height<=720][ext=mp4][vcodec!=none][acodec!=none]',
                     'best[height<=480][ext=mp4][vcodec!=none][acodec!=none]',
                     'best[height<=360][ext=mp4][vcodec!=none][acodec!=none]',
                     'best[ext=mp4][vcodec!=none][acodec!=none]',
                     'best[vcodec!=none][acodec!=none]',
-                    # Last-resort: any stream with a direct URL
                     'worstvideo[vcodec!=none][acodec!=none]',
                     'best[ext=mp4]/best',
                 ]
@@ -475,7 +480,9 @@ def get_direct_url():
         })
 
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        app.logger.error('get_direct_url unhandled exception: %s\n%s', e, traceback.format_exc())
+        return jsonify({'error': f'Unexpected error: {e}'}), 500
 
 
 @app.route('/ads.txt')
@@ -1294,7 +1301,9 @@ def download():
 
             _yt_extractor_args = {
                 'youtube': {
-                    'player_client': ['ios', 'tv_embedded'],
+                    # Use clients that expose adaptive (video-only + audio-only) streams
+                    # for bestvideo+bestaudio merging. ios only returns muxed streams.
+                    'player_client': ['android', 'mweb', 'web_creator', 'tv_embedded', 'ios'],
                 }
             }
             _yt_common = {

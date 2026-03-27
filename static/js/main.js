@@ -389,26 +389,78 @@ function stopPolling() {
 
 async function startDownloadAndWait({ url, formatId, type }) {
   setError("");
-  setDetect("Getting your download link…");
   stopPolling();
-
-  if (els.loaderText) els.loaderText.textContent = "Getting your download link…";
   setLoading(true, "Getting your download link…");
 
   try {
+    // ── Fast path: direct CDN URL (no server processing, instant open) ──────
     const r = await fetch("/get_direct_url", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ url, format_id: formatId, type }),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data?.success || !data?.url) {
-      throw new Error(data?.error || "Could not get the download link. Please try again.");
+
+    if (r.ok && data?.success && data?.url) {
+      setDetect("Opening your download…");
+      showToast("Your download is opening — check your downloads folder!", 4000);
+      window.open(data.url, "_blank", "noopener,noreferrer");
+      return;
     }
 
-    setDetect("Opening your download…");
-    showToast("Your download is opening — check your downloads folder!", 4000);
-    window.open(data.url, "_blank", "noopener,noreferrer");
+    // ── Slow path: server-side download + ffmpeg merge ───────────────────────
+    // Happens when the video only has separate adaptive streams (common on
+    // modern YouTube). The server downloads both streams, merges them, then
+    // serves the finished file.
+    showToast("Getting your file ready on the server — this may take a moment…", 5000);
+    setLoading(true, "Processing your file… please wait.");
+
+    const downloadId = (crypto?.randomUUID?.() || Math.random().toString(36).slice(2)) + Date.now();
+
+    const startR = await fetch("/download", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      // Don't pass muxed-only format_id here — the server uses bestvideo+bestaudio
+      // for merging, which is better quality anyway.
+      body: JSON.stringify({ url, type, download_id: downloadId }),
+    });
+    const startData = await startR.json().catch(() => ({}));
+    if (!startR.ok || !startData?.success) {
+      throw new Error(startData?.error || "Could not start the download. Please try again.");
+    }
+
+    // Poll for progress
+    let attempts = 0;
+    const maxAttempts = 120;
+    while (attempts < maxAttempts) {
+      await new Promise(res => setTimeout(res, 2000));
+      attempts++;
+
+      const pR = await fetch(`/progress/${downloadId}`);
+      const progress = await pR.json().catch(() => ({}));
+      const pct = progress?.percentage || 0;
+      const msg = progress?.message || "Processing…";
+
+      setLoading(true, `${msg} (${pct}%)`);
+
+      if (progress?.status === "complete" && progress?.download_url) {
+        showToast("Done! Your file is downloading now.", 4000);
+        const a = document.createElement("a");
+        a.href = progress.download_url;
+        a.download = "";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        return;
+      }
+
+      if (progress?.status === "error") {
+        throw new Error(progress?.message || "The download failed on the server. Please try again.");
+      }
+    }
+
+    throw new Error("Download timed out. The file may be too large or the server is busy — please try again.");
+
   } finally {
     setLoading(false);
     setDetect("");

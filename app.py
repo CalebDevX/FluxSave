@@ -294,23 +294,36 @@ def get_direct_url():
         # where web/android clients get bot-detected.
 
         is_youtube = ('youtube.com' in url_lower or 'youtu.be' in url_lower)
+        format_id = (data.get('format_id') or '').strip()
 
+        # ── Build format attempt list ─────────────────────────────────────────
+        # We can ONLY deliver a single pre-muxed stream URL to the browser —
+        # adaptive streams (bestvideo+bestaudio) require server-side merging.
+        # YouTube muxed streams top out at 720p. That is the realistic max.
         if download_type == 'audio':
-            # Audio-only: m4a then webm then anything
             format_attempts = [
                 'bestaudio[ext=m4a]/bestaudio[ext=webm]/bestaudio/best[acodec!=none]',
                 'bestaudio/best',
+                'best',
             ]
         else:
-            # Video: YouTube's format 18 is 360p muxed mp4 — most reliably available.
-            # Then fall back to other muxed streams, then any stream.
             if is_youtube:
                 format_attempts = [
+                    # Format 18 = 360p muxed mp4, highest YouTube reliability
                     '18',
+                    # Try quality-specific muxed mp4 (up to 720p — above this YouTube is adaptive only)
+                    'best[height<=720][ext=mp4][vcodec!=none][acodec!=none]',
+                    'best[height<=480][ext=mp4][vcodec!=none][acodec!=none]',
+                    'best[height<=360][ext=mp4][vcodec!=none][acodec!=none]',
                     'best[ext=mp4][vcodec!=none][acodec!=none]',
                     'best[vcodec!=none][acodec!=none]',
+                    # Last-resort: any stream with a direct URL
+                    'worstvideo[vcodec!=none][acodec!=none]',
                     'best[ext=mp4]/best',
                 ]
+                # If caller passed a safe muxed format_id, try it first
+                if format_id and '+' not in format_id and 'bestvideo' not in format_id:
+                    format_attempts.insert(0, format_id)
             else:
                 format_attempts = [
                     'best[ext=mp4][vcodec!=none][acodec!=none]',
@@ -318,6 +331,8 @@ def get_direct_url():
                     'best[ext=mp4]/best',
                     'best',
                 ]
+                if format_id and '+' not in format_id and 'bestvideo' not in format_id:
+                    format_attempts.insert(0, format_id)
 
         base_ydl_opts = {
             'quiet': True,
@@ -330,8 +345,9 @@ def get_direct_url():
             'ignore_no_formats_error': True,
             'extractor_args': {
                 'youtube': {
-                    # Use multiple clients for reliability on server IPs
-                    'player_client': ['ios', 'web_creator', 'tv_embedded', 'mweb'],
+                    # Multiple clients improve reliability on server IPs where
+                    # the default web client gets bot-detected by YouTube.
+                    'player_client': ['ios', 'android', 'tv_embedded', 'mweb', 'web_creator'],
                 },
             },
         }
@@ -357,91 +373,100 @@ def get_direct_url():
         if not info:
             err = str(last_error) if last_error else 'Could not extract media info'
             if last_error and 'sign in' in str(last_error).lower():
-                err = 'YouTube requires authentication. Please add your YouTube cookies via the YOUTUBE_COOKIES secret.'
+                err = 'This video requires a YouTube login. Try adding your YouTube cookies in the settings.'
             return jsonify({'error': err}), 400
 
         title = info.get('title', 'download')
         ext = info.get('ext', 'mp4' if download_type == 'video' else 'm4a')
         safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:150] or 'download'
 
-        # yt-dlp sets info['url'] when a single format is resolved
+        # yt-dlp sets info['url'] when a single muxed format is resolved.
+        # Reject manifest URLs — those can't be directly downloaded by the browser.
         direct_url = info.get('url')
+        if direct_url and (
+            info.get('protocol') in ('m3u8', 'm3u8_native', 'dash', 'http_dash_segments')
+            or '.m3u8' in direct_url
+            or '.mpd' in direct_url
+        ):
+            direct_url = None
 
-        # Scan formats list for a usable direct URL
+        # Scan the formats list for a usable direct (non-manifest) URL
         if not direct_url and 'formats' in info:
             formats = info['formats']
 
-            def is_real_stream(f):
-                """Return True only for genuine audio/video stream formats.
-                Excludes storyboards (mhtml sprite sheets), thumbnails, and
-                any format where both codecs are absent."""
+            def is_direct_stream(f):
+                """Accept only genuine, directly-downloadable http/https stream URLs.
+                Rejects HLS/DASH manifests, mhtml storyboards, and formats with no URL."""
                 furl = f.get('url', '')
-                if not (isinstance(furl, str) and (furl.startswith('http://') or furl.startswith('https://'))):
+                if not (isinstance(furl, str) and furl.startswith('http')):
                     return False
-                # Reject storyboard / mhtml formats (YouTube preview sprite sheets)
-                if f.get('ext') == 'mhtml' or f.get('protocol') == 'mhtml':
+                # Reject known non-downloadable protocol types
+                proto = f.get('protocol', '')
+                if proto in ('m3u8', 'm3u8_native', 'dash', 'http_dash_segments', 'mhtml'):
                     return False
-                # Reject formats that carry neither audio nor video (thumbnails, storyboards)
-                if f.get('vcodec') in (None, 'none') and f.get('acodec') in (None, 'none'):
+                if f.get('ext') == 'mhtml':
+                    return False
+                # Reject manifest-like URLs
+                if '.m3u8' in furl or '.mpd' in furl:
                     return False
                 return True
 
+            all_direct = [f for f in formats if is_direct_stream(f)]
+
             if download_type == 'audio':
-                # Prefer audio-only formats (no video stream)
+                # Audio-only stream preferred; fall back to any direct stream with audio
                 candidates = [
-                    f for f in formats
-                    if is_real_stream(f)
-                    and f.get('acodec') not in (None, 'none')
+                    f for f in all_direct
+                    if f.get('acodec') not in (None, 'none')
                     and f.get('vcodec') in (None, 'none')
                 ]
                 if not candidates:
-                    # Fall back to any real format with audio
-                    candidates = [
-                        f for f in formats
-                        if is_real_stream(f)
-                        and f.get('acodec') not in (None, 'none')
-                    ]
+                    candidates = [f for f in all_direct if f.get('acodec') not in (None, 'none')]
+                if not candidates:
+                    candidates = all_direct
             else:
-                # Prefer muxed formats (both video + audio in one stream)
+                # Prefer muxed (video + audio in one stream) — no merging needed
                 candidates = [
-                    f for f in formats
-                    if is_real_stream(f)
-                    and f.get('vcodec') not in (None, 'none')
+                    f for f in all_direct
+                    if f.get('vcodec') not in (None, 'none')
                     and f.get('acodec') not in (None, 'none')
                 ]
                 if not candidates:
-                    # Fall back to video-only stream (no audio)
-                    candidates = [
-                        f for f in formats
-                        if is_real_stream(f)
-                        and f.get('vcodec') not in (None, 'none')
-                    ]
+                    # Video-only (no audio track available)
+                    candidates = [f for f in all_direct if f.get('vcodec') not in (None, 'none')]
+                if not candidates:
+                    # Last resort: anything with a direct URL
+                    candidates = all_direct
 
             if candidates:
-                # Pick the best available by filesize/tbr (highest quality)
                 best = sorted(
                     candidates,
-                    key=lambda f: f.get('filesize') or f.get('tbr') or 0,
+                    key=lambda f: (
+                        f.get('height') or 0,
+                        f.get('filesize') or f.get('filesize_approx') or 0,
+                        f.get('tbr') or 0,
+                    ),
                     reverse=True
                 )[0]
                 direct_url = best['url']
                 ext = best.get('ext', ext)
 
         if not direct_url:
-            # Debug: log what formats were actually returned so we can diagnose
-            debug_formats = []
-            for f in info.get('formats', []):
-                debug_formats.append({
-                    'id': f.get('format_id'),
-                    'ext': f.get('ext'),
-                    'proto': f.get('protocol'),
-                    'vcodec': f.get('vcodec'),
-                    'acodec': f.get('acodec'),
-                    'has_url': bool(f.get('url')),
-                    'url_prefix': (f.get('url') or '')[:60],
-                })
-            app.logger.warning('No direct URL found. info[url]=%s formats=%s', info.get('url'), debug_formats)
-            return jsonify({'error': 'No direct download URL available for this content'}), 400
+            app.logger.warning(
+                'No direct URL found for %s. formats=%s',
+                url,
+                [{'id': f.get('format_id'), 'proto': f.get('protocol'), 'ext': f.get('ext'), 'has_url': bool(f.get('url'))}
+                 for f in info.get('formats', [])]
+            )
+            if is_youtube:
+                return jsonify({
+                    'error': (
+                        'Could not get a direct download link for this YouTube video. '
+                        'YouTube may be blocking the request, or this video only has adaptive streams. '
+                        'Try a different quality or try again in a moment.'
+                    )
+                }), 400
+            return jsonify({'error': 'No direct download URL could be found for this content.'}), 400
 
         return jsonify({
             'success': True,

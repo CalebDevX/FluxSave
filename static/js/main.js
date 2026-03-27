@@ -289,9 +289,12 @@ function renderButtons(info) {
   const v = Array.isArray(info?.video_formats) ? info.video_formats : [];
   const a = Array.isArray(info?.audio_formats) ? info.audio_formats : [];
 
+  // Best Video — muxed MP4 only (no server-side merging required).
+  // YouTube caps muxed streams at 720p; 1080p/4K are adaptive-only and
+  // cannot be delivered as a single CDN redirect URL.
   els.videoButtons.appendChild(buildButton({
-    label: "Best Quality",
-    formatId: "bestvideo+bestaudio/best",
+    label: "Best MP4",
+    formatId: "best[ext=mp4][vcodec!=none][acodec!=none]/best[vcodec!=none][acodec!=none]/18",
     type: "video",
     isBest: true,
   }));
@@ -304,21 +307,21 @@ function renderButtons(info) {
   }));
 
   const audioPresets = [
-    { label: "MP3 (320kbps)", formatId: "bestaudio[ext=mp3]/bestaudio/best", type: "audio" },
-    { label: "MP3 (128kbps)", formatId: "worstaudio[ext=mp3]/worstaudio/worst", type: "audio" },
+    { label: "MP3", formatId: "bestaudio[ext=mp3]/bestaudio/best", type: "audio" },
     { label: "M4A (AAC)", formatId: "bestaudio[ext=m4a]/bestaudio/best", type: "audio" },
     { label: "OGG (Vorbis)", formatId: "bestaudio[ext=ogg]/bestaudio/best", type: "audio" },
-    { label: "WAV (Lossless)", formatId: "bestaudio[ext=wav]/bestaudio/best", type: "audio" },
+    { label: "WebM Audio", formatId: "bestaudio[ext=webm]/bestaudio/best", type: "audio" },
   ];
   for (const preset of audioPresets) els.audioButtons.appendChild(buildButton(preset));
 
+  // Muxed-only video presets — single stream, no merging, direct browser download.
+  // 1080p and 4K are NOT listed because YouTube only offers those as separate
+  // video+audio adaptive streams which cannot be joined without server processing.
   const videoPresets = [
-    { label: "4K (2160p)", formatId: "bestvideo[height<=2160]+bestaudio/best[height<=2160]", type: "video" },
-    { label: "1080p (HD)", formatId: "bestvideo[height<=1080]+bestaudio/best[height<=1080]", type: "video" },
-    { label: "720p (HD)", formatId: "bestvideo[height<=720]+bestaudio/best[height<=720]", type: "video" },
-    { label: "480p (SD)", formatId: "bestvideo[height<=480]+bestaudio/best[height<=480]", type: "video" },
-    { label: "360p", formatId: "bestvideo[height<=360]+bestaudio/best[height<=360]", type: "video" },
-    { label: "240p", formatId: "bestvideo[height<=240]+bestaudio/best[height<=240]", type: "video" },
+    { label: "720p (HD)", formatId: "best[height<=720][ext=mp4][vcodec!=none][acodec!=none]/best[height<=720][vcodec!=none][acodec!=none]/18", type: "video" },
+    { label: "480p (SD)", formatId: "best[height<=480][ext=mp4][vcodec!=none][acodec!=none]/best[height<=480][vcodec!=none][acodec!=none]/18", type: "video" },
+    { label: "360p", formatId: "18/best[height<=360][ext=mp4][vcodec!=none][acodec!=none]", type: "video" },
+    { label: "240p", formatId: "best[height<=240][ext=mp4][vcodec!=none][acodec!=none]/best[height<=240][vcodec!=none][acodec!=none]", type: "video" },
   ];
   for (const preset of videoPresets) els.videoButtons.appendChild(buildButton(preset));
 

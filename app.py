@@ -352,6 +352,8 @@ def get_direct_url():
 
         if not info:
             err = str(last_error) if last_error else 'Could not extract media info'
+            if last_error and 'sign in' in str(last_error).lower():
+                err = 'YouTube requires authentication. Please add your YouTube cookies via the YOUTUBE_COOKIES secret.'
             return jsonify({'error': err}), 400
 
         title = info.get('title', 'download')
@@ -422,6 +424,19 @@ def get_direct_url():
                 ext = best.get('ext', ext)
 
         if not direct_url:
+            # Debug: log what formats were actually returned so we can diagnose
+            debug_formats = []
+            for f in info.get('formats', []):
+                debug_formats.append({
+                    'id': f.get('format_id'),
+                    'ext': f.get('ext'),
+                    'proto': f.get('protocol'),
+                    'vcodec': f.get('vcodec'),
+                    'acodec': f.get('acodec'),
+                    'has_url': bool(f.get('url')),
+                    'url_prefix': (f.get('url') or '')[:60],
+                })
+            app.logger.warning('No direct URL found. info[url]=%s formats=%s', info.get('url'), debug_formats)
             return jsonify({'error': 'No direct download URL available for this content'}), 400
 
         return jsonify({

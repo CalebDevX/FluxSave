@@ -33,9 +33,24 @@ let lastMediaUrl = null;
 let activeDownload = { downloadId: null, pollTimer: null };
 
 // ─── Toast ───────────────────────────────────────────────────────────────────
-function showToast(message, ms = 3000) {
+const TOAST_CONFIG = {
+  success: { icon: "✅", title: "All good!" },
+  error:   { icon: "❌", title: "Something went wrong" },
+  info:    { icon: "ℹ️",  title: "Heads up" },
+  warning: { icon: "⚠️", title: "Just so you know" },
+};
+
+function showToast(message, ms = 3500, type = "info") {
   if (!els.toast) return;
-  els.toast.textContent = message;
+  const cfg = TOAST_CONFIG[type] || TOAST_CONFIG.info;
+  els.toast.className = `toast toast--${type}`;
+  els.toast.innerHTML = `
+    <span class="toast-icon">${cfg.icon}</span>
+    <div class="toast-body">
+      <div class="toast-title">${cfg.title}</div>
+      <div class="toast-msg">${message}</div>
+    </div>
+  `;
   els.toast.classList.remove("hidden");
   window.clearTimeout(showToast._t);
   showToast._t = window.setTimeout(() => els.toast.classList.add("hidden"), ms);
@@ -143,7 +158,7 @@ function buildButton({ label, formatId, type, isBest }) {
     if (btn.dataset.isStarting === "1") return;
     btn.dataset.isStarting = "1";
 
-    showToast("Getting your file ready, please wait…");
+    showToast("Preparing your file — this will just take a moment.", 3500, "info");
 
     const initialVariant = btn.dataset.initialVariant || "";
     if (initialVariant) btn.classList.remove(initialVariant);
@@ -153,11 +168,11 @@ function buildButton({ label, formatId, type, isBest }) {
 
     try {
       const url = (els.mediaInput?.value || "").trim();
-      if (!url) throw new Error("Please paste a link first.");
+      if (!url) throw new Error("Please paste a link first, then try again.");
       await startDownloadAndWait({ url, formatId, type });
       restoreBtn(btn);
     } catch (e) {
-      setError(e?.message || "Something went wrong. Please try again.");
+      setError(e?.message || "Hmm, something went wrong. Please try again.");
       restoreBtn(btn);
     } finally {
       btn.disabled = false;
@@ -237,11 +252,11 @@ function renderMusicCard(info, url) {
 
 // ─── Music download handler ───────────────────────────────────────────────────
 async function triggerMusicDownload(url, btn, statusEl) {
-  if (!url) { showToast("No track loaded. Paste a link and tap Fetch first."); return; }
+  if (!url) { showToast("No track loaded yet. Paste a link and tap Fetch first.", 3500, "warning"); return; }
 
   btn.disabled = true;
-  btn.textContent = "Fetching your track…";
-  if (statusEl) statusEl.textContent = "Getting download link, please wait…";
+  btn.textContent = "Looking up your track…";
+  if (statusEl) statusEl.textContent = "Fetching your download link, hang tight…";
 
   try {
     const r = await fetch("/get_direct_url", {
@@ -251,12 +266,12 @@ async function triggerMusicDownload(url, btn, statusEl) {
     });
     const data = await r.json().catch(() => ({}));
     if (!r.ok || !data?.success || !data?.url) {
-      throw new Error(data?.error || "Could not get the download link. Please try again.");
+      throw new Error(data?.error || "Couldn't get the download link. Please try again.");
     }
 
     const filename = data.filename || "audio.mp3";
     if (statusEl) statusEl.textContent = "Starting your download…";
-    showToast("Your download has started! Check your downloads folder.", 4000);
+    showToast("Your download is on its way! Check your Downloads folder.", 4500, "success");
 
     const proxyUrl = `/download-proxy?url=${encodeURIComponent(data.url)}&filename=${encodeURIComponent(filename)}`;
     const a = document.createElement("a");
@@ -266,10 +281,10 @@ async function triggerMusicDownload(url, btn, statusEl) {
     a.click();
     document.body.removeChild(a);
 
-    if (statusEl) statusEl.textContent = "Download started! Check your downloads folder.";
+    if (statusEl) statusEl.textContent = "Download started! Check your Downloads folder.";
   } catch (e) {
-    showToast(e.message || "Download failed. Please try again.", 4000);
-    if (statusEl) statusEl.textContent = "Download failed. Please try again.";
+    showToast(e.message || "Download failed. Please try again.", 4000, "error");
+    if (statusEl) statusEl.textContent = "Something went wrong. Please try again.";
   } finally {
     setTimeout(() => {
       btn.disabled = false;
@@ -349,7 +364,7 @@ async function fetchInfo(url) {
   setError("");
   showResults(false);
   showMusicCard(false);
-  setLoading(true, isMusicPlatform ? "Looking up your track…" : "Fetching media info…");
+  setLoading(true, isMusicPlatform ? "Finding your track… almost there!" : "Loading your media info…");
 
   try {
     const r = await fetch("/fetch_info", {
@@ -358,7 +373,7 @@ async function fetchInfo(url) {
       body: JSON.stringify({ url }),
     });
     const data = await r.json().catch(() => ({}));
-    if (!r.ok || !data?.success) throw new Error(data?.error || "Could not fetch media info. Please check the link and try again.");
+    if (!r.ok || !data?.success) throw new Error(data?.error || "Couldn't load that link. Double-check it and try again.");
 
     lastInfo = data;
     lastMediaUrl = url;
@@ -366,13 +381,13 @@ async function fetchInfo(url) {
     if (isMusicPlatform) {
       renderMusicCard(data, url);
       showMusicCard(true);
-      showToast("Track found! Tap the button below to download it to your device.", 4000);
+      showToast("Track found! Tap the button below to save it to your device.", 4500, "success");
       els.musicCard?.scrollIntoView({ behavior: "smooth", block: "start" });
     } else {
       renderMeta(data);
       renderButtons(data);
       showResults(true);
-      showToast("Ready! Pick a quality below to start your download.");
+      showToast("All set! Pick your preferred quality below to start downloading.", 4000, "success");
       els.resultCard?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   } finally {
@@ -403,7 +418,7 @@ async function startDownloadAndWait({ url, formatId, type }) {
 
     if (r.ok && data?.success && data?.url) {
       setDetect("Opening your download…");
-      showToast("Your download is opening — check your downloads folder!", 4000);
+      showToast("Your file is opening now — check your Downloads folder!", 4500, "success");
       window.open(data.url, "_blank", "noopener,noreferrer");
       return;
     }
@@ -412,8 +427,8 @@ async function startDownloadAndWait({ url, formatId, type }) {
     // Happens when the video only has separate adaptive streams (common on
     // modern YouTube). The server downloads both streams, merges them, then
     // serves the finished file.
-    showToast("Getting your file ready on the server — this may take a moment…", 5000);
-    setLoading(true, "Processing your file… please wait.");
+    showToast("This one needs a moment on our end — we're merging the video for you.", 5000, "info");
+    setLoading(true, "Merging your file on the server… hang tight!");
 
     const downloadId = (crypto?.randomUUID?.() || Math.random().toString(36).slice(2)) + Date.now();
 
@@ -444,7 +459,7 @@ async function startDownloadAndWait({ url, formatId, type }) {
       setLoading(true, `${msg} (${pct}%)`);
 
       if (progress?.status === "complete" && progress?.download_url) {
-        showToast("Done! Your file is downloading now.", 4000);
+        showToast("Your file is ready and downloading now. Check your Downloads folder!", 5000, "success");
         const a = document.createElement("a");
         a.href = progress.download_url;
         a.download = "";
@@ -455,11 +470,11 @@ async function startDownloadAndWait({ url, formatId, type }) {
       }
 
       if (progress?.status === "error") {
-        throw new Error(progress?.message || "The download failed on the server. Please try again.");
+        throw new Error(progress?.message || "The download hit a snag on our end. Please try again.");
       }
     }
 
-    throw new Error("Download timed out. The file may be too large or the server is busy — please try again.");
+    throw new Error("That took too long — the file might be too large or the server is busy. Please try again in a moment.");
 
   } finally {
     setLoading(false);
@@ -518,14 +533,14 @@ function createSpotifyTrackItem(track) {
       if (!directUrl) {
         const artistStr = Array.isArray(track.artists) ? track.artists.join(", ") : (track.artists || "");
         const query = [track.title, artistStr].filter(Boolean).join(" ");
-        if (!query) { showToast("Track info is missing. Please try another song.", 3000); return; }
+        if (!query) { showToast("We couldn't find enough info for this track. Try a different one.", 3500, "warning"); return; }
         const safeName = ([track.title, artistStr].filter(Boolean).join(" - "))
           .replace(/[\\/:*?"<>|]/g, "_").substring(0, 150) || "audio";
         directUrl = `/stream-spotify/${encodeURIComponent(safeName)}.mp3?q=${encodeURIComponent(query)}`;
         filename = `${safeName}.mp3`;
       }
 
-      showToast("Your download has started! Check your downloads folder.", 4000);
+      showToast("Your download is on its way! Check your Downloads folder.", 4500, "success");
 
       const isProxy = directUrl.startsWith("/stream-spotify") ? false : true;
       if (isProxy) {
@@ -545,7 +560,7 @@ function createSpotifyTrackItem(track) {
         document.body.removeChild(a);
       }
     } catch {
-      showToast("Download failed. Please try again.", 3000);
+      showToast("Download failed. Please check your connection and try again.", 3500, "error");
     } finally {
       setTimeout(() => {
         dlBtn.disabled = false;
@@ -561,7 +576,7 @@ function createSpotifyTrackItem(track) {
 async function performSpotifySearch() {
   const query = (els.spotifySearchInput?.value || "").trim();
   if (!query) {
-    if (els.spotifySearchError) els.spotifySearchError.textContent = "Type a song name or artist name to search.";
+    if (els.spotifySearchError) els.spotifySearchError.textContent = "Type a song name or artist name above to search.";
     return;
   }
   if (els.spotifySearchError) els.spotifySearchError.textContent = "";
@@ -607,20 +622,20 @@ function wireEvents() {
     setError("");
     try {
       const text = await navigator.clipboard.readText();
-      if (!text) { showToast("Your clipboard is empty — copy a link first!"); return; }
+      if (!text) { showToast("Your clipboard is empty — copy a link first, then tap Paste.", 3500, "warning"); return; }
       els.mediaInput.value = text.trim();
       setDetect(`Detected: ${detectPlatform(els.mediaInput.value)}`);
-      showToast("Link pasted! Tap Fetch Media to continue.");
+      showToast("Link pasted! Now tap Fetch Media to continue.", 3000, "success");
     } catch {
-      showToast("Browser blocked clipboard access. Please long-press the box and paste manually.");
+      showToast("Your browser blocked clipboard access. Please long-press the input box and paste manually.", 4000, "warning");
     }
   });
 
   els.fetchBtn?.addEventListener("click", async () => {
     const url = (els.mediaInput?.value || "").trim();
-    if (!url) { setError("Please paste a media link first."); return; }
+    if (!url) { setError("Paste a media link in the box above first, then tap Fetch Media."); return; }
     setDetect(`Detected: ${detectPlatform(url)}`);
-    try { await fetchInfo(url); } catch (e) { setError(e?.message || "Something went wrong. Please try again."); }
+    try { await fetchInfo(url); } catch (e) { setError(e?.message || "Hmm, something went wrong. Please try again."); }
   });
 
   // Music card download button

@@ -294,7 +294,47 @@ def get_direct_url():
         # where web/android clients get bot-detected.
 
         is_youtube = ('youtube.com' in url_lower or 'youtu.be' in url_lower)
+        is_facebook = ('facebook.com' in url_lower or 'fb.watch' in url_lower or 'fb.me' in url_lower)
         format_id = (data.get('format_id') or '').strip()
+
+        # ── Facebook: try public scraper API first ────────────────────────────
+        # yt-dlp sometimes picks DASH (video-only) streams for Facebook.
+        # A dedicated scraper reliably returns the muxed SD/HD URLs.
+        if is_facebook and download_type == 'video':
+            try:
+                fb_api_resp = requests.post(
+                    'https://snapsave.app/action.php',
+                    data={'url': url},
+                    headers={
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                        'Referer': 'https://snapsave.app/',
+                        'Origin': 'https://snapsave.app',
+                    },
+                    timeout=15
+                )
+                if fb_api_resp.ok:
+                    fb_data = fb_api_resp.json()
+                    # SnapSave returns {"status":true,"data":[{"resolution":"...","url":"...","should_render":false},...]}
+                    # Pick the highest-resolution muxed stream (should_render=false means direct URL)
+                    links = fb_data.get('data') or []
+                    if isinstance(links, list):
+                        direct_links = [l for l in links if not l.get('should_render') and l.get('url')]
+                        if direct_links:
+                            # Prefer HD over SD
+                            hd = next((l for l in direct_links if 'hd' in str(l.get('resolution', '')).lower()), None)
+                            chosen = hd or direct_links[0]
+                            fb_url = chosen['url']
+                            title = 'facebook_video'
+                            try:
+                                with yt_dlp.YoutubeDL({'quiet': True, 'skip_download': True}) as _ydl:
+                                    _info = _ydl.extract_info(url, download=False)
+                                    title = _info.get('title', title) if _info else title
+                            except Exception:
+                                pass
+                            safe_title = re.sub(r'[\\/:*?"<>|]', '_', title)[:150] or 'facebook_video'
+                            return jsonify({'success': True, 'url': fb_url, 'filename': f'{safe_title}.mp4'})
+            except Exception:
+                pass  # Fall through to yt-dlp
 
         # ── Build format attempt list ─────────────────────────────────────────
         # We can ONLY deliver a single pre-muxed stream URL to the browser —
@@ -327,6 +367,21 @@ def get_direct_url():
                     'best[ext=mp4]/best',
                 ]
                 # If caller passed a safe muxed format_id, try it first
+                if format_id and '+' not in format_id and 'bestvideo' not in format_id:
+                    format_attempts.insert(0, format_id)
+            elif is_facebook:
+                # Facebook exposes named muxed format IDs.
+                # hd/sd _src_no_ratelimit are single muxed streams with both video AND audio.
+                # DASH variants (dash_hd_src / dash_sd_src) are video-only — avoid them.
+                format_attempts = [
+                    'hd_src_no_ratelimit/sd_src_no_ratelimit',
+                    'hd_src/sd_src',
+                    'sd_src_no_ratelimit',
+                    'sd_src',
+                    'best[ext=mp4][vcodec!=none][acodec!=none]',
+                    'best[vcodec!=none][acodec!=none]',
+                    'best[ext=mp4]/best',
+                ]
                 if format_id and '+' not in format_id and 'bestvideo' not in format_id:
                     format_attempts.insert(0, format_id)
             else:

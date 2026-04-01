@@ -59,6 +59,76 @@ def resolve_spotify_url(url: str) -> str:
         return url
     return url
 
+def _fetch_twitter_info(url: str) -> dict | None:
+    """Fetch Twitter/X video info using the fxtwitter public API.
+
+    Returns a dict with keys: title, thumbnail, uploader, duration_seconds,
+    videos (list of {url, width, height, ext}).
+    Returns None if the tweet has no video or the API fails.
+    """
+    tweet_id_match = re.search(r'/status/(\d+)', url)
+    if not tweet_id_match:
+        return None
+    tweet_id = tweet_id_match.group(1)
+
+    apis = [
+        f'https://api.fxtwitter.com/status/{tweet_id}',
+        f'https://api.vxtwitter.com/Twitter/status/{tweet_id}',
+    ]
+    for api_url in apis:
+        try:
+            resp = requests.get(
+                api_url,
+                headers={'User-Agent': 'FluxSave/1.0'},
+                timeout=15,
+            )
+            if not resp.ok:
+                continue
+            data = resp.json()
+            tweet = data.get('tweet') or data.get('data') or {}
+            media = tweet.get('media') or {}
+            videos = media.get('videos') or []
+            if not videos:
+                continue
+
+            author = tweet.get('author') or {}
+            uploader = author.get('name') or author.get('screen_name') or 'Unknown'
+            text = tweet.get('text') or tweet.get('full_text') or 'Twitter Video'
+            thumbnail = ''
+            if videos:
+                thumbnail = videos[0].get('thumbnail_url') or ''
+
+            duration_seconds = None
+            if videos[0].get('duration'):
+                duration_seconds = videos[0]['duration']
+
+            parsed_videos = []
+            for v in videos:
+                vurl = v.get('url')
+                if not vurl:
+                    continue
+                parsed_videos.append({
+                    'url': vurl,
+                    'width': v.get('width', 0),
+                    'height': v.get('height', 0),
+                    'ext': 'mp4',
+                })
+
+            if not parsed_videos:
+                continue
+
+            return {
+                'title': text[:200],
+                'thumbnail': thumbnail,
+                'uploader': uploader,
+                'duration_seconds': duration_seconds,
+                'videos': parsed_videos,
+            }
+        except Exception:
+            continue
+    return None
+
+
 # File cleanup function
 def cleanup_old_files():
     """Remove files older than 5 minutes"""
@@ -285,6 +355,19 @@ def get_direct_url():
                 return jsonify({'error': 'No direct URL found for this Audiomack track'}), 500
             except Exception as e:
                 return jsonify({'error': f'Audiomack error: {str(e)}'}), 500
+
+        # ── Twitter / X ───────────────────────────────────────────────────────
+        if 'twitter.com' in url_lower or 'x.com' in url_lower:
+            tw = _fetch_twitter_info(url)
+            if tw and tw.get('videos'):
+                videos = tw['videos']
+                # Sort highest quality first
+                best = sorted(videos, key=lambda v: v.get('height', 0), reverse=True)[0]
+                video_url = best['url']
+                safe_title = re.sub(r'[\\/:*?"<>|]', '_', tw['title'])[:150] or 'twitter_video'
+                return jsonify({'success': True, 'url': video_url, 'filename': f'{safe_title}.mp4'})
+            # No video found via API — return a clear message rather than falling through
+            return jsonify({'error': '🐦 This tweet doesn\'t contain a downloadable video. Only tweets with video content can be downloaded.'}), 400
 
         # ── Everything else via yt-dlp ────────────────────────────────────────
         # We need a single-stream URL (no merging) so we can redirect the browser.
@@ -748,6 +831,38 @@ def fetch_info():
                 })
             except Exception as e:
                 return jsonify({'error': f'Audiomack extractor error: {str(e)}'}), 400
+
+        # ── Twitter / X — use fxtwitter public API ────────────────────────────
+        if 'twitter.com' in url_lower or 'x.com' in url_lower:
+            tw = _fetch_twitter_info(url)
+            if tw:
+                videos = tw['videos']
+                # Sort by height descending — best quality first
+                videos_sorted = sorted(videos, key=lambda v: v.get('height', 0), reverse=True)
+                video_formats = []
+                for v in videos_sorted:
+                    h = v.get('height', 0)
+                    label = f"{h}p" if h else "Video"
+                    video_formats.append({
+                        'format_id': v['url'],
+                        'quality': label,
+                        'ext': v.get('ext', 'mp4'),
+                        'filesize': 'Unknown',
+                    })
+
+                dur = tw.get('duration_seconds')
+                dur_str = f"{int(dur // 60)}:{int(dur % 60):02d}" if dur else 'Unknown'
+
+                return jsonify({
+                    'success': True,
+                    'title': tw['title'],
+                    'thumbnail': tw['thumbnail'],
+                    'uploader': tw['uploader'],
+                    'duration': dur_str,
+                    'video_formats': video_formats[:8],
+                    'audio_formats': [],
+                })
+            # If the API found no video, fall through to yt-dlp as a last resort
 
         # Enhanced options for Instagram and other platforms
         #

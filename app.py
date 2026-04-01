@@ -795,8 +795,8 @@ def fetch_info():
             video_formats = list({v['format_id']: v for v in video_formats}.values())
             audio_formats = list({a['format_id']: a for a in audio_formats}.values())
 
-            video_formats = sorted(video_formats, key=lambda x: int(x['quality'].replace('p', '')) if x['quality'].replace('p', '').isdigit() else 0, reverse=True)
-            audio_formats = sorted(audio_formats, key=lambda x: int(x['quality'].replace('kbps', '')) if 'kbps' in x['quality'] else 0, reverse=True)
+            video_formats = sorted(video_formats, key=lambda x: int(str(x['quality']).replace('p', '')) if str(x['quality']).replace('p', '').isdigit() else 0, reverse=True)
+            audio_formats = sorted(audio_formats, key=lambda x: int(str(x['quality']).replace('kbps', '')) if 'kbps' in str(x['quality']) else 0, reverse=True)
 
         return jsonify({
             'success': True,

@@ -41,6 +41,28 @@ def _get_cookie_file():
     return None
 
 
+# Cookie file support for Instagram (same pattern as YouTube).
+# Instagram requires a logged-in session to access almost all content as of 2025.
+# Set INSTAGRAM_COOKIES env var to the contents of a Netscape-format cookies.txt file
+# exported from a logged-in Instagram session (e.g. via browser extension "Get cookies.txt LOCALLY").
+_INSTAGRAM_COOKIE_FILE_PATH = None
+
+def _get_instagram_cookie_file():
+    """Return a path to an Instagram cookies file, creating one from env var if needed."""
+    global _INSTAGRAM_COOKIE_FILE_PATH
+    cookies_content = os.environ.get('INSTAGRAM_COOKIES', '')
+    cookies_file = os.environ.get('INSTAGRAM_COOKIES_FILE', '')
+    if cookies_file and os.path.isfile(cookies_file):
+        return cookies_file
+    if cookies_content:
+        if _INSTAGRAM_COOKIE_FILE_PATH is None:
+            _INSTAGRAM_COOKIE_FILE_PATH = '/tmp/ig_cookies.txt'
+        with open(_INSTAGRAM_COOKIE_FILE_PATH, 'w') as f:
+            f.write(cookies_content)
+        return _INSTAGRAM_COOKIE_FILE_PATH
+    return None
+
+
 def resolve_spotify_url(url: str) -> str:
     """
     Resolve Spotify short links / redirects to a canonical open.spotify.com URL.
@@ -60,11 +82,69 @@ def resolve_spotify_url(url: str) -> str:
     return url
 
 def _fetch_instagram_media(url: str) -> dict | None:
-    """Try multiple public scraper APIs to fetch Instagram media.
+    """Fetch Instagram media info using yt-dlp with session cookies (primary) or
+    public scraper APIs (fallback).
 
     Returns a dict with keys: title, thumbnail, uploader, videos (list of {url, quality, ext}).
-    Returns None if all APIs fail.
+    Returns None if all methods fail.
     """
+
+    # ── Primary: yt-dlp with Instagram session cookies ────────────────────────
+    # Instagram requires a logged-in session for all API access since late 2023.
+    # When INSTAGRAM_COOKIES is configured this path will work reliably.
+    ig_cookie_file = _get_instagram_cookie_file()
+    if ig_cookie_file:
+        try:
+            ydl_opts = {
+                'quiet': True,
+                'no_warnings': True,
+                'extract_flat': False,
+                'skip_download': True,
+                'socket_timeout': 30,
+                'cookiefile': ig_cookie_file,
+                'http_headers': {
+                    'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+                },
+            }
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+            if info:
+                formats = info.get('formats') or []
+                videos = []
+                for f in formats:
+                    furl = f.get('url', '')
+                    if not furl or not furl.startswith('http'):
+                        continue
+                    proto = f.get('protocol', '')
+                    if proto in ('m3u8', 'm3u8_native', 'dash', 'http_dash_segments'):
+                        continue
+                    if '.m3u8' in furl or '.mpd' in furl:
+                        continue
+                    h = f.get('height') or 0
+                    videos.append({
+                        'url': furl,
+                        'quality': f"{h}p" if h else 'Video',
+                        'ext': f.get('ext', 'mp4'),
+                        'height': h,
+                    })
+                # Sort best quality first
+                videos = sorted(videos, key=lambda v: v.get('height', 0), reverse=True)
+                # If no separate formats, try info['url'] directly
+                if not videos and info.get('url'):
+                    videos = [{'url': info['url'], 'quality': 'Video', 'ext': info.get('ext', 'mp4'), 'height': 0}]
+                if videos:
+                    return {
+                        'title': info.get('title', 'Instagram Video'),
+                        'thumbnail': info.get('thumbnail', ''),
+                        'uploader': info.get('uploader', 'Instagram'),
+                        'videos': videos,
+                    }
+        except Exception:
+            pass
+
+    # ── Fallback: public HTML scraper APIs ────────────────────────────────────
+    # These third-party services may or may not be reachable from the server.
+    # They are kept as a best-effort fallback but are not reliable long-term.
     browser_headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
         'Accept': 'application/json, text/javascript, */*; q=0.01',
@@ -102,7 +182,7 @@ def _fetch_instagram_media(url: str) -> dict | None:
                 return m.group(1)
         return ''
 
-    # ── API 1: snapinsta.app ──────────────────────────────────────────────────
+    # ── Fallback API 1: snapinsta.app ─────────────────────────────────────────
     try:
         resp = requests.post(
             'https://snapinsta.app/api/ajax',
@@ -113,7 +193,7 @@ def _fetch_instagram_media(url: str) -> dict | None:
                 'Origin': 'https://snapinsta.app',
                 'X-Requested-With': 'XMLHttpRequest',
             },
-            timeout=20,
+            timeout=15,
         )
         if resp.ok:
             data = resp.json()
@@ -127,7 +207,7 @@ def _fetch_instagram_media(url: str) -> dict | None:
     except Exception:
         pass
 
-    # ── API 2: igdownloader.app ───────────────────────────────────────────────
+    # ── Fallback API 2: igdownloader.app ──────────────────────────────────────
     try:
         resp = requests.post(
             'https://igdownloader.app/api/ajaxSearch',
@@ -138,7 +218,7 @@ def _fetch_instagram_media(url: str) -> dict | None:
                 'Origin': 'https://igdownloader.app',
                 'X-Requested-With': 'XMLHttpRequest',
             },
-            timeout=20,
+            timeout=15,
         )
         if resp.ok:
             data = resp.json()
@@ -152,7 +232,7 @@ def _fetch_instagram_media(url: str) -> dict | None:
     except Exception:
         pass
 
-    # ── API 3: saveinsta.app ──────────────────────────────────────────────────
+    # ── Fallback API 3: saveinsta.app ─────────────────────────────────────────
     try:
         resp = requests.post(
             'https://saveinsta.app/api/ajaxSearch',
@@ -163,7 +243,7 @@ def _fetch_instagram_media(url: str) -> dict | None:
                 'Origin': 'https://saveinsta.app',
                 'X-Requested-With': 'XMLHttpRequest',
             },
-            timeout=20,
+            timeout=15,
         )
         if resp.ok:
             data = resp.json()
@@ -629,6 +709,11 @@ def get_direct_url():
         cookie_file = _get_cookie_file()
         if cookie_file:
             base_ydl_opts['cookiefile'] = cookie_file
+        # For Instagram URLs prefer the Instagram cookie file if available
+        if 'instagram.com' in url_lower:
+            ig_cf = _get_instagram_cookie_file()
+            if ig_cf:
+                base_ydl_opts['cookiefile'] = ig_cf
 
         info = None
         last_error = None
@@ -1064,6 +1149,11 @@ def fetch_info():
         cookie_file = _get_cookie_file()
         if cookie_file:
             ydl_opts['cookiefile'] = cookie_file
+        # For Instagram URLs prefer the Instagram cookie file if available
+        if 'instagram.com' in url_lower:
+            ig_cf = _get_instagram_cookie_file()
+            if ig_cf:
+                ydl_opts['cookiefile'] = ig_cf
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -1171,16 +1261,15 @@ def fetch_info():
                 return jsonify({'error': '📱 TikTok download failed. The video may be unavailable or TikTok is blocking requests. Wait 2-3 minutes and try again with a different video.'}), 400
 
         elif platform == 'instagram':
-            if 'rate-limit' in error_msg.lower() or 'rate limit' in error_msg.lower():
-                return jsonify({'error': '📸 Instagram Rate Limit: Too many requests detected.\n\nSolutions:\n✓ Wait 5-10 minutes before trying again\n✓ Instagram blocks automated downloads temporarily\n✓ Try a different post in the meantime\n✓ Make sure the post is public'}), 400
-            elif 'login required' in error_msg.lower() or 'authentication' in error_msg.lower():
-                return jsonify({'error': '📸 Instagram Login Required: This content requires authentication.\n\nPossible reasons:\n• Post is from a private account\n• Content is age-restricted\n• Instagram is blocking automated access\n\nOnly public posts and reels can be downloaded.'}), 400
+            cookies_hint = '\n\n💡 Fix: Set the INSTAGRAM_COOKIES secret in your server settings with cookies exported from a logged-in Instagram browser session.'
+            if 'rate-limit' in error_msg.lower() or 'rate limit' in error_msg.lower() or 'login required' in error_msg.lower() or 'authentication' in error_msg.lower():
+                return jsonify({'error': '📸 Instagram now requires a logged-in session for all downloads.\n\nInstagram blocked this request because no session cookies are configured on the server.' + cookies_hint}), 400
             elif 'not available' in error_msg.lower() or 'content is not available' in error_msg.lower():
                 return jsonify({'error': '📸 Instagram Content Unavailable:\n• Post may be deleted or made private\n• Story/Highlight has expired\n• Account is private or blocked\n• Region restrictions apply\n\nTry a different public post or reel.'}), 400
             elif 'private' in error_msg.lower():
                 return jsonify({'error': '📸 This Instagram account/post is private. Only public content can be downloaded.'}), 400
             else:
-                return jsonify({'error': '📸 Instagram Error: Unable to fetch content. Instagram may be blocking requests.\n\nSolutions:\n✓ Wait 5-10 minutes and try again\n✓ Make sure the post/reel is public\n✓ Try copying the link directly from Instagram app\n✓ Use a different public post'}), 400
+                return jsonify({'error': '📸 Instagram download failed. Instagram requires session cookies to serve content.\n\nMake sure the post is public and try again.' + cookies_hint}), 400
 
         elif platform == 'youtube':
             if 'private' in error_msg.lower() or 'unavailable' in error_msg.lower():

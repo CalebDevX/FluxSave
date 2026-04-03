@@ -50,6 +50,10 @@ A Flask-based media downloader that supports YouTube, TikTok, Instagram, Faceboo
 ## Environment Variables
 - `SPOTIFY_CLIENT_ID` / `SPOTIFY_BEARER_TOKEN` – Optional Spotify API credentials
 - `YOUTUBE_COOKIES` / `YOUTUBE_COOKIES_FILE` – YouTube cookie bypass for bot detection
+- `INSTAGRAM_COOKIES` / `INSTAGRAM_COOKIES_FILE` – Instagram session cookies (Netscape format). Required as of 2025 — Instagram blocks all server-side requests without a logged-in session. Export from browser with "Get cookies.txt LOCALLY" extension and paste full content into this secret.
+
+## Instagram Download Notes
+Instagram requires authenticated session cookies for all content since late 2023. The `INSTAGRAM_COOKIES` env var should contain a Netscape-format cookies.txt file from a logged-in Instagram session. Without it, downloads will fail with "rate-limit reached or login required". The Instagram downloader page shows a clear notice explaining this to site owners.
 
 ## Deployment
 - Configured for autoscale deployment via gunicorn

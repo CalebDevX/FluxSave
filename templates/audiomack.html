@@ -334,7 +334,12 @@
           `;
         }
 
-        if (amEls.downloadBtn) amEls.downloadBtn._amUrl = url;
+        // Store all track info on the button for use during download
+        if (amEls.downloadBtn) {
+          amEls.downloadBtn._amUrl = url;
+          amEls.downloadBtn._amTitle = title;
+          amEls.downloadBtn._amArtist = uploader;
+        }
         amEls.musicCard?.classList.remove("hidden");
         amEls.musicCard?.scrollIntoView({ behavior: "smooth", block: "start" });
         showAmToast("Track found! Tap Download MP3 to save it to your device.", 4000);
@@ -350,34 +355,74 @@
       const url = amEls.downloadBtn._amUrl;
       if (!url) { showAmToast("No track loaded. Paste a link and tap Fetch first."); return; }
 
+      const trackTitle = amEls.downloadBtn._amTitle || "";
+      const trackArtist = amEls.downloadBtn._amArtist || "";
+
       amEls.downloadBtn.disabled = true;
       amEls.downloadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Getting your track…';
       if (amEls.musicStatus) amEls.musicStatus.textContent = "Getting download link, please wait…";
 
-      try {
-        const r = await fetch("/get_direct_url", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ url, type: "audio" }),
-        });
-        const data = await r.json().catch(() => ({}));
-        if (!r.ok || !data?.success || !data?.url) {
-          throw new Error(data?.error || "Could not get the download link. Please try again.");
-        }
-
-        const filename = data.filename || "audio.mp3";
-        if (amEls.musicStatus) amEls.musicStatus.textContent = "Starting your download…";
-        showAmToast("Your download has started! Check your downloads folder.", 4000);
-
-        const proxyUrl = `/download-proxy?url=${encodeURIComponent(data.url)}&filename=${encodeURIComponent(filename)}`;
+      // Helper: trigger a file download via an anchor element
+      function triggerDownload(href, filename) {
         const a = document.createElement("a");
-        a.href = proxyUrl;
+        a.href = href;
         a.download = filename;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
+      }
+
+      // Helper: build a safe filename from title + artist
+      function safeFilename(title, artist) {
+        const raw = [title, artist].filter(Boolean).join(" - ");
+        return raw.replace(/[\\/:*?"<>|]/g, "_").substring(0, 150) || "audio";
+      }
+
+      try {
+        // ── Step 1: Try Audiomack direct URL ────────────────────────────────
+        let directUrl = null;
+        let filename = null;
+        try {
+          const r = await fetch("/get_direct_url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, type: "audio" }),
+          });
+          const data = await r.json().catch(() => ({}));
+          if (r.ok && data?.success && data?.url) {
+            directUrl = data.url;
+            filename = data.filename || "audio.mp3";
+          }
+        } catch (_) { /* fall through to YouTube search */ }
+
+        if (directUrl) {
+          // Direct Audiomack URL worked — proxy it for a clean download
+          if (amEls.musicStatus) amEls.musicStatus.textContent = "Starting your download…";
+          showAmToast("Your download has started! Check your downloads folder.", 4000);
+          const proxyUrl = `/download-proxy?url=${encodeURIComponent(directUrl)}&filename=${encodeURIComponent(filename)}`;
+          triggerDownload(proxyUrl, filename);
+          if (amEls.musicStatus) amEls.musicStatus.textContent = "Download started! Check your downloads folder.";
+          return;
+        }
+
+        // ── Step 2: Fall back to YouTube search (same as Spotify) ───────────
+        // Build a search query from Audiomack track title + artist
+        const query = [trackTitle, trackArtist].filter(Boolean).join(" ");
+        if (!query) throw new Error("Could not determine the track name. Try searching for it on the home page.");
+
+        const safeName = safeFilename(trackTitle, trackArtist);
+        filename = `${safeName}.mp3`;
+
+        if (amEls.musicStatus) amEls.musicStatus.textContent = "Searching YouTube for this track…";
+        showAmToast("Finding the best match for this track on YouTube…", 3500);
+
+        // /stream-spotify does a YouTube search and streams the audio directly
+        const streamUrl = `/stream-spotify/${encodeURIComponent(safeName)}.mp3?q=${encodeURIComponent(query)}`;
+        triggerDownload(streamUrl, filename);
 
         if (amEls.musicStatus) amEls.musicStatus.textContent = "Download started! Check your downloads folder.";
+        showAmToast("Your download has started! Check your downloads folder.", 4000);
+
       } catch (e) {
         showAmToast(e.message || "Download failed. Please try again.", 4000);
         if (amEls.musicStatus) amEls.musicStatus.textContent = "Download failed. Please try again.";

@@ -59,6 +59,127 @@ def resolve_spotify_url(url: str) -> str:
         return url
     return url
 
+def _fetch_instagram_media(url: str) -> dict | None:
+    """Try multiple public scraper APIs to fetch Instagram media.
+
+    Returns a dict with keys: title, thumbnail, uploader, videos (list of {url, quality, ext}).
+    Returns None if all APIs fail.
+    """
+    browser_headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        'Accept': 'application/json, text/javascript, */*; q=0.01',
+        'Accept-Language': 'en-US,en;q=0.9',
+    }
+
+    def _extract_urls_from_html(html: str) -> list:
+        """Extract Instagram CDN video URLs from an HTML snippet."""
+        patterns = [
+            r'href=["\']([^"\']+\.mp4[^"\']*)["\']',
+            r'data-url=["\']([^"\']+\.mp4[^"\']*)["\']',
+            r'"url"\s*:\s*"(https://[^"]+\.mp4[^"]*)"',
+            r'(https://scontent[^"\'<>\s]+\.mp4[^"\'<>\s]*)',
+            r'(https://[^"\'<>\s]*cdninstagram[^"\'<>\s]+\.mp4[^"\'<>\s]*)',
+        ]
+        found = []
+        for pat in patterns:
+            found.extend(re.findall(pat, html))
+        seen = set()
+        unique = []
+        for u in found:
+            clean = u.rstrip('\\').split('\\')[0]
+            if clean not in seen:
+                seen.add(clean)
+                unique.append(clean)
+        return unique
+
+    def _extract_thumbnail_from_html(html: str) -> str:
+        for pat in [
+            r'<img[^>]+src=["\']([^"\']+\.jpg[^"\']*)["\']',
+            r'"thumbnail"\s*:\s*"(https://[^"]+)"',
+        ]:
+            m = re.search(pat, html)
+            if m:
+                return m.group(1)
+        return ''
+
+    # ── API 1: snapinsta.app ──────────────────────────────────────────────────
+    try:
+        resp = requests.post(
+            'https://snapinsta.app/api/ajax',
+            data={'url': url, 'lang': 'en'},
+            headers={
+                **browser_headers,
+                'Referer': 'https://snapinsta.app/',
+                'Origin': 'https://snapinsta.app',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            timeout=20,
+        )
+        if resp.ok:
+            data = resp.json()
+            html = data.get('html', '')
+            if html:
+                video_urls = _extract_urls_from_html(html)
+                if video_urls:
+                    thumbnail = _extract_thumbnail_from_html(html)
+                    videos = [{'url': u, 'quality': f'Video {i+1}', 'ext': 'mp4'} for i, u in enumerate(video_urls)]
+                    return {'title': 'Instagram Video', 'thumbnail': thumbnail, 'uploader': 'Instagram', 'videos': videos}
+    except Exception:
+        pass
+
+    # ── API 2: igdownloader.app ───────────────────────────────────────────────
+    try:
+        resp = requests.post(
+            'https://igdownloader.app/api/ajaxSearch',
+            data={'q': url, 't': 'media', 'lang': 'en'},
+            headers={
+                **browser_headers,
+                'Referer': 'https://igdownloader.app/',
+                'Origin': 'https://igdownloader.app',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            timeout=20,
+        )
+        if resp.ok:
+            data = resp.json()
+            html = data.get('html', data.get('data', ''))
+            if html:
+                video_urls = _extract_urls_from_html(html)
+                if video_urls:
+                    thumbnail = _extract_thumbnail_from_html(html)
+                    videos = [{'url': u, 'quality': f'Video {i+1}', 'ext': 'mp4'} for i, u in enumerate(video_urls)]
+                    return {'title': 'Instagram Video', 'thumbnail': thumbnail, 'uploader': 'Instagram', 'videos': videos}
+    except Exception:
+        pass
+
+    # ── API 3: saveinsta.app ──────────────────────────────────────────────────
+    try:
+        resp = requests.post(
+            'https://saveinsta.app/api/ajaxSearch',
+            data={'q': url, 't': 'media', 'lang': 'en'},
+            headers={
+                **browser_headers,
+                'Referer': 'https://saveinsta.app/',
+                'Origin': 'https://saveinsta.app',
+                'X-Requested-With': 'XMLHttpRequest',
+            },
+            timeout=20,
+        )
+        if resp.ok:
+            data = resp.json()
+            html = data.get('html', data.get('data', ''))
+            if html:
+                video_urls = _extract_urls_from_html(html)
+                if video_urls:
+                    thumbnail = _extract_thumbnail_from_html(html)
+                    videos = [{'url': u, 'quality': f'Video {i+1}', 'ext': 'mp4'} for i, u in enumerate(video_urls)]
+                    return {'title': 'Instagram Video', 'thumbnail': thumbnail, 'uploader': 'Instagram', 'videos': videos}
+    except Exception:
+        pass
+
+    return None
+
+
 def _fetch_twitter_info(url: str) -> dict | None:
     """Fetch Twitter/X video info using the fxtwitter public API.
 
@@ -368,6 +489,16 @@ def get_direct_url():
                 return jsonify({'success': True, 'url': video_url, 'filename': f'{safe_title}.mp4'})
             # No video found via API — return a clear message rather than falling through
             return jsonify({'error': '🐦 This tweet doesn\'t contain a downloadable video. Only tweets with video content can be downloaded.'}), 400
+
+        # ── Instagram — use public scraper APIs first ─────────────────────────
+        if 'instagram.com' in url_lower and download_type == 'video':
+            ig = _fetch_instagram_media(url)
+            if ig and ig.get('videos'):
+                best = ig['videos'][0]
+                video_url = best['url']
+                safe_title = re.sub(r'[\\/:*?"<>|]', '_', ig.get('title', 'instagram_video'))[:150] or 'instagram_video'
+                return jsonify({'success': True, 'url': video_url, 'filename': f'{safe_title}.mp4'})
+            # Fall through to yt-dlp if APIs all failed
 
         # ── Everything else via yt-dlp ────────────────────────────────────────
         # We need a single-stream URL (no merging) so we can redirect the browser.
@@ -863,6 +994,29 @@ def fetch_info():
                     'audio_formats': [],
                 })
             # If the API found no video, fall through to yt-dlp as a last resort
+
+        # ── Instagram — use public scraper APIs first ─────────────────────────
+        if 'instagram.com' in url_lower:
+            ig = _fetch_instagram_media(url)
+            if ig and ig.get('videos'):
+                video_formats = []
+                for i, v in enumerate(ig['videos']):
+                    video_formats.append({
+                        'format_id': v['url'],
+                        'quality': v.get('quality', f'Video {i+1}'),
+                        'ext': v.get('ext', 'mp4'),
+                        'filesize': 'Unknown',
+                    })
+                return jsonify({
+                    'success': True,
+                    'title': ig.get('title', 'Instagram Video'),
+                    'thumbnail': ig.get('thumbnail', ''),
+                    'uploader': ig.get('uploader', 'Instagram'),
+                    'duration': 'Unknown',
+                    'video_formats': video_formats[:8],
+                    'audio_formats': [],
+                })
+            # Fall through to yt-dlp as last resort
 
         # Enhanced options for Instagram and other platforms
         #
